@@ -1437,16 +1437,61 @@ function showFieldSelector() {
 }
 
 function getFieldsForSelector() {
-  const fields = readFields_();
-  return fields
-    .filter(f => f.calculated !== 'true' && f.type !== 'object')
-    .map(f => ({
-      id: f.id,
-      name: f.name,
-      jsonPath: f.jsonPath,
-      type: f.type,
-      listName: f.typeData?.listName || ''
-    }));
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.META_SHEET);
+  if (!sh) {
+    throw new Error('Sheet "' + CONFIG.META_SHEET + '" not found. Run "1. Pull Fields" first.');
+  }
+  
+  const data = sh.getDataRange().getValues();
+  if (data.length < 3) {
+    throw new Error('Sheet "' + CONFIG.META_SHEET + '" is empty. Run "1. Pull Fields" first.');
+  }
+  
+  // Header is on row 2 (index 1)
+  const header = data[1].map(function(x) { return String(x || '').trim(); });
+  const iId = header.indexOf('id');
+  const iName = header.indexOf('name');
+  const iPath = header.indexOf('jsonPath');
+  const iType = header.indexOf('type');
+  const iCalc = header.indexOf('calculated');
+  const iTypeData = header.indexOf('typeData (raw JSON)');
+  
+  const fields = [];
+  // Data starts at row 3 (index 2)
+  for (var r = 2; r < data.length; r++) {
+    var row = data[r];
+    
+    // Skip calculated fields and object types early
+    const calculated = iCalc >= 0 ? String(row[iCalc] || '').trim() : '';
+    const fieldType = iType >= 0 ? String(row[iType] || '').trim() : '';
+    
+    if (calculated === 'true' || fieldType === 'object') {
+      continue;
+    }
+    
+    // Only parse typeData if we need listName (for list types)
+    var listName = '';
+    if (iTypeData >= 0 && row[iTypeData]) {
+      try {
+        const typeData = JSON.parse(String(row[iTypeData]));
+        if (typeData && typeData.listName) {
+          listName = String(typeData.listName);
+        }
+      } catch (e) {
+        // If JSON parse fails, skip it - not a list type
+      }
+    }
+    
+    fields.push({
+      id: iId >= 0 ? safe(row[iId]) : '',
+      name: iName >= 0 ? safe(row[iName]) : '',
+      jsonPath: iPath >= 0 ? safe(row[iPath]) : '',
+      type: fieldType,
+      listName: listName
+    });
+  }
+  
+  return fields;
 }
 
 function setSelectedField(fieldName) {
