@@ -2320,12 +2320,27 @@ function processBatch() {
     }
   }
   
+  // PRIORITY 3: Try category-only lookup (for shared lists within a category)
+  // Extract just the category part: "category_123.field_456" -> "category_123"
+  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+    const categoryOnly = categoryId.split('.')[0]; // Get first part before the dot
+    if (categoryOnly && categoryOnly !== categoryId) {
+      Logger.log(`📋 Trying category-only lookup: "${categoryOnly}"`);
+      listMap = buildListLabelToIdByFieldId_(categoryOnly);
+      Logger.log(`📋 List map by category "${categoryOnly}": ${Object.keys(listMap || {}).length} values found`);
+      if (listMap && Object.keys(listMap).length > 0) {
+        Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+      }
+    }
+  }
+  
   // Final check
   if (!listMap || Object.keys(listMap).length === 0) {
     Logger.log(`❌ CRITICAL: No list values found by any method!`);
     Logger.log(`   → Cell H1 (listName): "${listName}"`);
     Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
-    Logger.log(`   → Suggestion: Re-run "Setup Field Uploader" and search for the field again`);
+    Logger.log(`   → This field is type "list" but has no listName and no matching field ID in Bob Lists`);
+    Logger.log(`   → Suggestion: Run "Bob → SETUP → 2. Pull Lists" to refresh list values`);
   }
   
   const stats = state.stats || { completed: 0, skipped: 0, failed: 0 };
