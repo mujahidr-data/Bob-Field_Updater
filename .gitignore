@@ -1,0 +1,29 @@
+# Clasp
+.clasp.json
+
+# Node
+node_modules/
+package-lock.json
+
+# Environment
+.env
+config.json
+service_account.json
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
