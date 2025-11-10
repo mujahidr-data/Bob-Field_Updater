@@ -2524,8 +2524,8 @@ function checkBatchStatus() {
   
   const state = JSON.parse(stateJson);
   const ul = getOrCreateSheet_(SHEET_UPLOADER);
-  const totalRows = ul.getLastRow() - 16;
-  const completed = state.nextRow - 17;
+  const totalRows = ul.getLastRow() - 17;
+  const completed = state.nextRow - 18;
   const progress = Math.round((completed / totalRows) * 100);
   const remaining = totalRows - completed;
   const estimatedMinutes = Math.ceil(remaining / BATCH_SIZE) * TRIGGER_INTERVAL;
