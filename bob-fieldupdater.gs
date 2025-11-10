@@ -2336,169 +2336,169 @@ function processBatch() {
       lock.releaseLock();
       return;
     }
-  
-  const data = ul.getRange(state.nextRow, 1, endRow - state.nextRow + 1, 2).getValues();
-  const ciqToBobMap = buildCiqToBobMap_();
-  
-  // Get category/field identifier from I1 (stored during field selection)
-  const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
-  
-  let listMap = null;
-  
-  // Debug: Show what we're working with
-  Logger.log(`🔍 Field: ${fieldPath}`);
-  Logger.log(`🔍 Category ID (I1): "${categoryId}"`);
-  Logger.log(`🔍 List Name (H1): "${listName}"`);
-  
-  // PRIORITY 1: Try listName first (shared lists across multiple fields)
-  // This is common for performance fields where one list is used by multiple period fields
-  if (listName) {
-    listMap = buildListLabelToId_(listName);
-    Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values found`);
-    if (listMap && Object.keys(listMap).length > 0) {
-      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    
+    const data = ul.getRange(state.nextRow, 1, endRow - state.nextRow + 1, 2).getValues();
+    const ciqToBobMap = buildCiqToBobMap_();
+    
+    // Get category/field identifier from I1 (stored during field selection)
+    const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
+    
+      let listMap = null;
+    
+    // Debug: Show what we're working with
+    Logger.log(`🔍 Field: ${fieldPath}`);
+    Logger.log(`🔍 Category ID (I1): "${categoryId}"`);
+    Logger.log(`🔍 List Name (H1): "${listName}"`);
+    
+    // PRIORITY 1: Try listName first (shared lists across multiple fields)
+    // This is common for performance fields where one list is used by multiple period fields
+    if (listName) {
+      listMap = buildListLabelToId_(listName);
+      Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values found`);
+      if (listMap && Object.keys(listMap).length > 0) {
+        Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+      }
+    } else {
+      Logger.log(`⚠️ No listName found in H1 - will try field ID lookup`);
     }
-  } else {
-    Logger.log(`⚠️ No listName found in H1 - will try field ID lookup`);
-  }
-  
-  // PRIORITY 2: Try field-specific lookup if listName didn't work
-  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
-    listMap = buildListLabelToIdByFieldId_(categoryId);
-    Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values found`);
-    if (listMap && Object.keys(listMap).length > 0) {
-      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
-    }
-  }
-  
-  // PRIORITY 3: Try category-only lookup (for shared lists within a category)
-  // Extract just the category part: "category_123.field_456" -> "category_123"
-  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
-    const categoryOnly = categoryId.split('.')[0]; // Get first part before the dot
-    if (categoryOnly && categoryOnly !== categoryId) {
-      Logger.log(`📋 Trying category-only lookup: "${categoryOnly}"`);
-      listMap = buildListLabelToIdByFieldId_(categoryOnly);
-      Logger.log(`📋 List map by category "${categoryOnly}": ${Object.keys(listMap || {}).length} values found`);
+    
+    // PRIORITY 2: Try field-specific lookup if listName didn't work
+    if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+      listMap = buildListLabelToIdByFieldId_(categoryId);
+      Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values found`);
       if (listMap && Object.keys(listMap).length > 0) {
         Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
       }
     }
-  }
-  
-  // Final check
-  if (!listMap || Object.keys(listMap).length === 0) {
-    Logger.log(`❌ CRITICAL: No list values found by any method!`);
-    Logger.log(`   → Cell H1 (listName): "${listName}"`);
-    Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
-    Logger.log(`   → This field is type "list" but has no listName and no matching field ID in Bob Lists`);
-    Logger.log(`   → Suggestion: Run "Bob → SETUP → 2. Pull Lists" to refresh list values`);
-  }
-  
-  const stats = state.stats || { completed: 0, skipped: 0, failed: 0 };
-  
-  for (let i = 0; i < data.length; i++) {
-    const rowNum = state.nextRow + i;
-    const ciq = normalizeBlank_(data[i][0]);
-    const rawNew = normalizeBlank_(data[i][1]);
     
-    if (!ciq) continue;
-    
-    ul.getRange(rowNum, 5).setValue(' Processing...');
-    
-    let bobId = ciqToBobMap[ciq];
-    if (!bobId) bobId = lookupBobIdFromApi_(auth, ciq);
-    
-    if (!bobId) {
-      writeUploaderResult_(ul, rowNum, 'FAILED', '', `CIQ ${ciq} not found`, '');
-      stats.failed++;
-      continue;
+    // PRIORITY 3: Try category-only lookup (for shared lists within a category)
+    // Extract just the category part: "category_123.field_456" -> "category_123"
+    if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+      const categoryOnly = categoryId.split('.')[0]; // Get first part before the dot
+      if (categoryOnly && categoryOnly !== categoryId) {
+        Logger.log(`📋 Trying category-only lookup: "${categoryOnly}"`);
+        listMap = buildListLabelToIdByFieldId_(categoryOnly);
+        Logger.log(`📋 List map by category "${categoryOnly}": ${Object.keys(listMap || {}).length} values found`);
+        if (listMap && Object.keys(listMap).length > 0) {
+          Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+        }
+      }
     }
     
-    ul.getRange(rowNum, 3).setValue(bobId);
-    ul.getRange(rowNum, 4).setValue(fieldPath);
+    // Final check
+    if (!listMap || Object.keys(listMap).length === 0) {
+      Logger.log(`❌ CRITICAL: No list values found by any method!`);
+      Logger.log(`   → Cell H1 (listName): "${listName}"`);
+      Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
+      Logger.log(`   → This field is type "list" but has no listName and no matching field ID in Bob Lists`);
+      Logger.log(`   → Suggestion: Run "Bob → SETUP → 2. Pull Lists" to refresh list values`);
+    }
     
-    let newVal = rawNew;
-    if (listMap && Object.keys(listMap).length > 0) {
-      const hit = listMap[rawNew] || listMap[String(rawNew).toLowerCase()];
-      if (hit) {
-        newVal = hit;
-        Logger.log(`✓ Mapped "${rawNew}" → "${hit}"`);
-      } else {
-        // List map exists but value not found - show helpful error
-        const availableValues = Object.keys(listMap).filter(k => !k.toLowerCase().includes(k.toLowerCase())).slice(0, 15);
-        Logger.log(`⚠️ WARNING: "${rawNew}" not found in list map.`);
-        Logger.log(`   Available values: ${availableValues.join(', ')}`);
-        Logger.log(`   Field: ${fieldPath}`);
-        Logger.log(`   Category ID: ${categoryId}`);
-        
-        writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
-          `"${rawNew}" not valid. Available: ${availableValues.slice(0, 5).join(', ')}${availableValues.length > 5 ? '...' : ''}`, 
-          ''
-        );
+    const stats = state.stats || { completed: 0, skipped: 0, failed: 0 };
+    
+    for (let i = 0; i < data.length; i++) {
+      const rowNum = state.nextRow + i;
+      const ciq = normalizeBlank_(data[i][0]);
+      const rawNew = normalizeBlank_(data[i][1]);
+      
+      if (!ciq) continue;
+      
+      ul.getRange(rowNum, 5).setValue(' Processing...');
+      
+      let bobId = ciqToBobMap[ciq];
+      if (!bobId) bobId = lookupBobIdFromApi_(auth, ciq);
+      
+      if (!bobId) {
+        writeUploaderResult_(ul, rowNum, 'FAILED', '', `CIQ ${ciq} not found`, '');
         stats.failed++;
         continue;
       }
-    } else {
-      // No list map found - check if this is a list-type field
-      const fieldType = normalizeBlank_(ul.getRange('G1').getValue());
-      if (fieldType === 'list' || listName) {
-        Logger.log(`⚠️ CRITICAL: No list values found for list-type field!`);
-        Logger.log(`   Field: ${fieldPath}`);
-        Logger.log(`   Category ID: ${categoryId}`);
-        Logger.log(`   List Name: ${listName}`);
-        Logger.log(`   Value to send: "${rawNew}"`);
-        Logger.log(`   → Check "Bob Lists" sheet for this field's values`);
-        Logger.log(`   → Or run: Bob → SETUP → 2. Pull Lists`);
-        
-        writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
-          `No list values found for field. Run "Pull Lists" or check Bob Lists sheet`, 
-          ''
-        );
-        stats.failed++;
-        continue;
-      }
-      // Not a list field, send value as-is
-      Logger.log(`📝 Non-list field, sending "${rawNew}" as-is`);
-    }
-    
-    const body = buildPutBody_(fieldPath, newVal);
-    const putUrl = `${BASE}/v1/people/${encodeURIComponent(bobId)}`;
-    
-    try {
-      const resp = UrlFetchApp.fetch(putUrl, {
-        method: 'put',
-        muteHttpExceptions: true,
-        headers: { 
-          Authorization: `Basic ${auth}`, 
-          Accept: 'application/json', 
-          'Content-Type': 'application/json' 
-        },
-        payload: JSON.stringify(body)
-      });
       
-      const code = resp.getResponseCode();
+      ul.getRange(rowNum, 3).setValue(bobId);
+      ul.getRange(rowNum, 4).setValue(fieldPath);
       
-      if (code >= 200 && code < 300) {
-        const verified = readBackField_(auth, bobId, fieldPath);
-        writeUploaderResult_(ul, rowNum, 'COMPLETED', code, '', verified);
-        stats.completed++;
-      } else if (code === 304) {
-        const verified = readBackField_(auth, bobId, fieldPath);
-        writeUploaderResult_(ul, rowNum, 'SKIP', code, 'Already correct', verified);
-        stats.skipped++;
+      let newVal = rawNew;
+      if (listMap && Object.keys(listMap).length > 0) {
+        const hit = listMap[rawNew] || listMap[String(rawNew).toLowerCase()];
+        if (hit) {
+          newVal = hit;
+          Logger.log(`✓ Mapped "${rawNew}" → "${hit}"`);
+        } else {
+          // List map exists but value not found - show helpful error
+          const availableValues = Object.keys(listMap).filter(k => !k.toLowerCase().includes(k.toLowerCase())).slice(0, 15);
+          Logger.log(`⚠️ WARNING: "${rawNew}" not found in list map.`);
+          Logger.log(`   Available values: ${availableValues.join(', ')}`);
+          Logger.log(`   Field: ${fieldPath}`);
+          Logger.log(`   Category ID: ${categoryId}`);
+          
+          writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
+            `"${rawNew}" not valid. Available: ${availableValues.slice(0, 5).join(', ')}${availableValues.length > 5 ? '...' : ''}`, 
+            ''
+          );
+          stats.failed++;
+          continue;
+        }
       } else {
-        writeUploaderResult_(ul, rowNum, 'FAILED', code, resp.getContentText().slice(0,200), '');
+        // No list map found - check if this is a list-type field
+        const fieldType = normalizeBlank_(ul.getRange('G1').getValue());
+        if (fieldType === 'list' || listName) {
+          Logger.log(`⚠️ CRITICAL: No list values found for list-type field!`);
+          Logger.log(`   Field: ${fieldPath}`);
+          Logger.log(`   Category ID: ${categoryId}`);
+          Logger.log(`   List Name: ${listName}`);
+          Logger.log(`   Value to send: "${rawNew}"`);
+          Logger.log(`   → Check "Bob Lists" sheet for this field's values`);
+          Logger.log(`   → Or run: Bob → SETUP → 2. Pull Lists`);
+          
+          writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
+            `No list values found for field. Run "Pull Lists" or check Bob Lists sheet`, 
+            ''
+          );
+          stats.failed++;
+          continue;
+        }
+        // Not a list field, send value as-is
+        Logger.log(`📝 Non-list field, sending "${rawNew}" as-is`);
+      }
+      
+      const body = buildPutBody_(fieldPath, newVal);
+      const putUrl = `${BASE}/v1/people/${encodeURIComponent(bobId)}`;
+      
+      try {
+        const resp = UrlFetchApp.fetch(putUrl, {
+          method: 'put',
+          muteHttpExceptions: true,
+          headers: { 
+            Authorization: `Basic ${auth}`, 
+            Accept: 'application/json', 
+            'Content-Type': 'application/json' 
+          },
+          payload: JSON.stringify(body)
+        });
+        
+        const code = resp.getResponseCode();
+        
+        if (code >= 200 && code < 300) {
+          const verified = readBackField_(auth, bobId, fieldPath);
+          writeUploaderResult_(ul, rowNum, 'COMPLETED', code, '', verified);
+          stats.completed++;
+        } else if (code === 304) {
+          const verified = readBackField_(auth, bobId, fieldPath);
+          writeUploaderResult_(ul, rowNum, 'SKIP', code, 'Already correct', verified);
+          stats.skipped++;
+        } else {
+          writeUploaderResult_(ul, rowNum, 'FAILED', code, resp.getContentText().slice(0,200), '');
+          stats.failed++;
+        }
+      } catch(e) {
+        writeUploaderResult_(ul, rowNum, 'FAILED', 0, String(e).slice(0,200), '');
         stats.failed++;
       }
-    } catch(e) {
-      writeUploaderResult_(ul, rowNum, 'FAILED', 0, String(e).slice(0,200), '');
-      stats.failed++;
+      
+      Utilities.sleep(PUT_DELAY_MS);
     }
     
-    Utilities.sleep(PUT_DELAY_MS);
-  }
-  
-  SpreadsheetApp.flush();
+    SpreadsheetApp.flush();
   
     state.nextRow = endRow + 1;
     state.lastBatchTime = new Date().toISOString();
