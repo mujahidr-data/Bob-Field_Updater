@@ -833,9 +833,9 @@ const PUTS_PER_MIN = CONFIG.PUTS_PER_MINUTE || 10;
 const PUT_DELAY_MS = Math.ceil(60000 / PUTS_PER_MIN);
 
 /* ===== Batch upload constants ===== */
-const BATCH_SIZE = 45;
-const TRIGGER_INTERVAL = 5;
-const MAX_EXECUTION_TIME = 330000;
+const BATCH_SIZE = 50;           // Process 50 rows per batch (5 min execution time)
+const TRIGGER_INTERVAL = 1;      // Wait only 1 minute between batches (reduced from 5)
+const MAX_EXECUTION_TIME = 330000; // Google Apps Script limit: 5.5 minutes
 
 /* ===== NEW MENU STRUCTURE ===== */
 function onOpen() {
