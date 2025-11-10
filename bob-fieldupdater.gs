@@ -2624,18 +2624,18 @@ function clearAllUploadData() {
   let clearedSheets = [];
   let totalRowsCleared = 0;
   
-  if (regularSheet && regularSheet.getLastRow() > 16) {
-    const dataRows = regularSheet.getLastRow() - 16;
+  if (regularSheet && regularSheet.getLastRow() > 17) {
+    const dataRows = regularSheet.getLastRow() - 17;
     const maxCols = regularSheet.getMaxColumns();
     
-    regularSheet.getRange(17, 1, dataRows, maxCols)
+    regularSheet.getRange(18, 1, dataRows, maxCols)
       .clearContent()
       .clearFormat()
       .clearNote()
       .clearDataValidations();
     
     if (dataRows > 100) {
-      regularSheet.deleteRows(17, dataRows);
+      regularSheet.deleteRows(18, dataRows);
     }
     
     clearedSheets.push('Field Uploader');
