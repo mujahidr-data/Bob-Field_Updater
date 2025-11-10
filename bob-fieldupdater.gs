@@ -1546,11 +1546,18 @@ function onEdit(e) {
     // Check if user clicked on a field name in the results area (rows 15-16 only)
     if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() === 1) {
       const fieldName = range.getValue();
-      if (fieldName && fieldName !== 'CIQ ID' && fieldName.indexOf('No fields') === -1 && fieldName.indexOf('Selected:') === -1) {
-        // Check if this looks like a field name (has a path in column B)
+      if (fieldName && 
+          fieldName !== 'CIQ ID' && 
+          fieldName !== '(No search performed yet)' &&
+          fieldName.indexOf('No fields') === -1 && 
+          fieldName.indexOf('Selected:') === -1 &&
+          fieldName.indexOf('Field selected!') === -1) {
+        // Check if this looks like a field name (has a path in column B or C)
         const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
-        if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
-          // This is a field selection
+        const fieldPathAlt = sheet.getRange(range.getRow(), 3).getValue();
+        if ((fieldPath && String(fieldPath).indexOf('.') >= 0) || 
+            (fieldPathAlt && String(fieldPathAlt).indexOf('.') >= 0)) {
+          // This is a field selection - trigger it
           selectFieldFromList(fieldName);
         }
       }
@@ -1664,12 +1671,29 @@ function selectFieldFromList(fieldName) {
   try {
     const ul = getOrCreateSheet_(SHEET_UPLOADER);
     
-    // Find the field in the results
+    // Find the field in the results - try exact match first, then partial
     const allFields = getFieldsForSelector();
-    const field = allFields.find(f => f.name === fieldName);
+    let field = allFields.find(f => f.name === fieldName);
+    
+    // If exact match not found, try finding by checking the displayed row
+    if (!field) {
+      // Check row 15 and 16 for the field
+      for (let r = 15; r <= 16; r++) {
+        const rowName = ul.getRange(r, 1).getValue();
+        if (rowName === fieldName) {
+          // Get the jsonPath from column B
+          const jsonPath = ul.getRange(r, 2).getValue();
+          if (jsonPath) {
+            // Find field by jsonPath
+            field = allFields.find(f => f.jsonPath === jsonPath);
+            if (field) break;
+          }
+        }
+      }
+    }
     
     if (!field) {
-      SpreadsheetApp.getUi().alert('Field not found: ' + fieldName);
+      SpreadsheetApp.getUi().alert('Field not found: ' + fieldName + '\n\nPlease search again and click a field name.');
       return;
     }
     
