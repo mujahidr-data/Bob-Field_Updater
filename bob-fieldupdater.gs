@@ -644,6 +644,25 @@ function buildPutBody_(jsonPath, value) {
   const parts = jsonPath.replace(/^root\./, '').split('.');
   const body = {};
   
+  // Special handling for custom fields per Bob API docs:
+  // https://apidocs.hibob.com/docs/update-employee-data#how-to-update-custom-fields
+  // Custom fields should use the full field ID (with category) as the key
+  // Example: userData.custom.category_123.field_456 becomes:
+  // { "userData": { "custom": { "category_123.field_456": value } } }
+  
+  if (parts.length >= 3 && parts[0] === 'userData' && parts[1] === 'custom') {
+    // This is a custom field - join category.field as the key
+    const customFieldId = parts.slice(2).join('.');
+    return {
+      userData: {
+        custom: {
+          [customFieldId]: value
+        }
+      }
+    };
+  }
+  
+  // Standard nested structure for non-custom fields
   var current = body;
   for (var i = 0; i < parts.length - 1; i++) {
     current[parts[i]] = {};
