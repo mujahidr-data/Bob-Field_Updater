@@ -2736,16 +2736,32 @@ function checkBatchStatus() {
 
 function createBatchTrigger() {
   const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
   triggers.forEach(trigger => {
     if (trigger.getHandlerFunction() === 'processBatch') {
       ScriptApp.deleteTrigger(trigger);
+      deletedCount++;
     }
   });
   
-  ScriptApp.newTrigger('processBatch')
+  Logger.log(`🔄 Deleted ${deletedCount} old trigger(s), creating new one`);
+  
+  const newTrigger = ScriptApp.newTrigger('processBatch')
     .timeBased()
     .everyMinutes(TRIGGER_INTERVAL)
     .create();
+  
+  Logger.log(`✅ Trigger created: ${newTrigger.getUniqueId()}`);
+  Logger.log(`⏰ Will fire every ${TRIGGER_INTERVAL} minute(s)`);
+  
+  // Immediately run the first batch (don't wait for trigger)
+  try {
+    Logger.log(`▶️ Starting first batch immediately...`);
+    processBatch();
+  } catch(e) {
+    Logger.log(`⚠️ First batch failed: ${e}`);
+    throw e;
+  }
 }
 
 function clearBatchUpload() {
