@@ -2330,14 +2330,41 @@ function processBatch() {
         newVal = hit;
         Logger.log(`✓ Mapped "${rawNew}" → "${hit}"`);
       } else {
-        // List map exists but value not found - this will likely fail!
-        Logger.log(`⚠️ WARNING: "${rawNew}" not found in list map. Available: ${Object.keys(listMap).slice(0, 10).join(', ')}`);
-        writeUploaderResult_(ul, rowNum, 'FAILED', 400, `List value "${rawNew}" not found in available options`, '');
+        // List map exists but value not found - show helpful error
+        const availableValues = Object.keys(listMap).filter(k => !k.toLowerCase().includes(k.toLowerCase())).slice(0, 15);
+        Logger.log(`⚠️ WARNING: "${rawNew}" not found in list map.`);
+        Logger.log(`   Available values: ${availableValues.join(', ')}`);
+        Logger.log(`   Field: ${fieldPath}`);
+        Logger.log(`   Category ID: ${categoryId}`);
+        
+        writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
+          `"${rawNew}" not valid. Available: ${availableValues.slice(0, 5).join(', ')}${availableValues.length > 5 ? '...' : ''}`, 
+          ''
+        );
         stats.failed++;
         continue;
       }
-    } else if (!listMap && fieldPath.indexOf('list') >= 0) {
-      Logger.log(`⚠️ No list map found for field ${fieldPath} - sending "${rawNew}" as-is (may fail)`);
+    } else {
+      // No list map found - check if this is a list-type field
+      const fieldType = normalizeBlank_(ul.getRange('G1').getValue());
+      if (fieldType === 'list' || listName) {
+        Logger.log(`⚠️ CRITICAL: No list values found for list-type field!`);
+        Logger.log(`   Field: ${fieldPath}`);
+        Logger.log(`   Category ID: ${categoryId}`);
+        Logger.log(`   List Name: ${listName}`);
+        Logger.log(`   Value to send: "${rawNew}"`);
+        Logger.log(`   → Check "Bob Lists" sheet for this field's values`);
+        Logger.log(`   → Or run: Bob → SETUP → 2. Pull Lists`);
+        
+        writeUploaderResult_(ul, rowNum, 'FAILED', 400, 
+          `No list values found for field. Run "Pull Lists" or check Bob Lists sheet`, 
+          ''
+        );
+        stats.failed++;
+        continue;
+      }
+      // Not a list field, send value as-is
+      Logger.log(`📝 Non-list field, sending "${rawNew}" as-is`);
     }
     
     const body = buildPutBody_(fieldPath, newVal);
