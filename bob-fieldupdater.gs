@@ -857,10 +857,9 @@ function onOpen() {
       .addItem('3. Pull Employees', 'setupAndPullEmployees')
       .addItem('   >> Refresh Employees (Keep Filters)', 'pullEmployees')
       .addSeparator()
-      .addItem('4. Setup Field Uploader', 'setupUploader')
-      .addItem('5. Select Field to Update', 'showFieldSelector')
+      .addItem('4. Setup Field Uploader', 'showFieldSelector')
       .addSeparator()
-      .addSubMenu(ui.createMenu('6. History Tables')
+      .addSubMenu(ui.createMenu('5. History Tables')
         .addItem('Setup History Uploader', 'setupHistoryUploader')
         .addItem('Generate Columns for Table', 'generateHistoryColumns')
       )
@@ -1380,49 +1379,10 @@ function pullEmployeesData_(sh, auth) {
 // FIELD UPLOADER - Setup and Selection
 // ============================================================================
 
-function setupUploader() {
-  const sh = getOrCreateSheet_(SHEET_UPLOADER);
-  
-  sh.clear();
-  sh.clearNotes();
-  const lastRow = sh.getMaxRows();
-  const lastCol = sh.getMaxColumns();
-  if (lastRow > 0 && lastCol > 0) {
-    sh.getRange(1, 1, lastRow, lastCol).clearDataValidations();
-  }
-
-  sh.getRange('A1').setValue('Field Uploader - Update Single Field for Multiple Employees')
-    .setBackground(CONFIG.COLORS.HEADER)
-    .setFontColor(CONFIG.COLORS.HEADER_TEXT)
-    .setFontWeight('bold')
-    .setFontSize(14);
-  sh.getRange('A1:H1').mergeAcross();
-
-  sh.getRange('A2').setValue('INSTRUCTIONS:').setFontWeight('bold').setFontSize(11);
-  sh.getRange('A2:H2').mergeAcross();
-
-  const instructions = [
-    '1. Click "SETUP -> 5. Select Field to Update" to search and choose which field to update',
-    '2. Paste employee CIQ IDs in column A below (starting row 17)',
-    '3. Enter new values in column B',
-    '4. Validate with "VALIDATE -> Validate Field Upload Data"',
-    '5. Upload with "UPLOAD -> Quick Upload" or "Batch Upload"'
-  ];
-
-  instructions.forEach((instr, i) => {
-    sh.getRange(3 + i, 1).setValue(instr).setFontStyle('italic').setWrap(true);
-    sh.getRange(3 + i, 1, 1, 8).mergeAcross();
-  });
-
-  const dataHeaders = ['CIQ ID', 'New Value', 'Bob ID', 'Field Path', 'Status', 'Code', 'Error', 'Verified Value'];
-  sh.getRange(15, 1, 1, dataHeaders.length).setValues([dataHeaders]);
-  formatHeaderRow_(sh, 15, dataHeaders.length);
-
-  sh.setFrozenRows(15);
-  autoFitAllColumns_(sh);
-  
-  toast_('[OK] Field Uploader sheet ready. Use "Select Field to Update" to choose a field.');
-}
+// REMOVED: setupUploader() function
+// This was redundant because showFieldSelector() clears the sheet and builds everything from scratch.
+// The old setupUploader() would create an instruction sheet, then showFieldSelector() would wipe it.
+// Now menu item "4. Setup Field Uploader" directly calls showFieldSelector().
 
 function showFieldSelector() {
   const ul = getOrCreateSheet_(SHEET_UPLOADER);
@@ -3371,7 +3331,7 @@ function createDocumentationSheet() {
     ['Phase', 'Steps', 'Description'],
     ['SETUP', '1. Select Update Type', 'Choose between Regular Field Update or History Table Update'],
     ['', '2. Setup Uploader Sheet', 'Creates template with appropriate columns and validations'],
-    ['', '3. Select Field/Table', 'Choose which field or history table to update'],
+    ['', '3. Setup Field Uploader', 'Creates search interface to select field and build upload table'],
     ['VALIDATE', '4. Prepare Data', 'Paste CIQ IDs and new values into the sheet'],
     ['', '5. Run Validation', 'Checks for missing CIQs, blank values, and data quality'],
     ['UPLOAD', '6. Choose Upload Method', 'Quick (<40 rows) or Batch (40-1000+ rows)'],
@@ -3397,8 +3357,7 @@ function createDocumentationSheet() {
     ['3. Pull Employees', 'Downloads employee list with CIQ IDs and Bob IDs', 'Run initially, and whenever new employees join or you need terminated employees'],
     ['', '', ''],
     ['REGULAR FIELD UPDATES', '', ''],
-    ['4. Setup Field Uploader', 'Creates Uploader sheet with field selector', 'Before updating any regular field'],
-    ['5. Select Field', 'Opens searchable field picker dialog', 'To choose which field to update'],
+    ['4. Setup Field Uploader', 'Creates Uploader sheet with search interface', 'Before updating any regular field - search and select field in one step'],
     ['', '', ''],
     ['HISTORY TABLE UPDATES', '', ''],
     ['6. Setup History Uploader', 'Creates History Uploader sheet with table selector', 'Before updating salary/work/variable pay history'],
@@ -3531,7 +3490,7 @@ function createDocumentationSheet() {
   
   const quickRef = [
     ['Task', 'Menu Path'],
-    ['Update a regular field', 'Setup → 4. Setup Field Uploader → Select Field → Paste data → Validate → Upload'],
+    ['Update a regular field', 'Setup → 4. Setup Field Uploader → Search field → Paste data → Validate → Upload'],
     ['Update salary history', 'History Tables → Setup History Uploader → Select "Salary/Payroll" → Generate Columns → Paste → Upload'],
     ['Find terminated employee', 'Employees sheet → B3 = "All" → Re-run Pull Employees'],
     ['Check batch progress', 'Upload → Check Batch Status'],
