@@ -1543,10 +1543,28 @@ function onEdit(e) {
       return;
     }
     
-    // Check if user clicked anywhere in the results area (rows 15-16, any column)
-    if (range.getRow() >= 15 && range.getRow() <= 16) {
-      // Get the field name from column A of that row
-      const fieldName = sheet.getRange(range.getRow(), 1).getValue();
+    // Check if user clicked the "Select" button (column H) in results area (rows 15-16)
+    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() === 8) {
+      const selectButton = range.getValue();
+      if (selectButton && String(selectButton).indexOf('Select') >= 0) {
+        // Get the field name from column I (stored there)
+        const fieldName = sheet.getRange(range.getRow(), 9).getValue();
+        if (fieldName) {
+          selectFieldFromList(fieldName);
+          return;
+        }
+      }
+    }
+    
+    // Also check if user clicked anywhere in the results area (rows 15-16, columns A-G)
+    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() >= 1 && range.getColumn() <= 7) {
+      // Get the field name from column A of that row (remove emoji if present)
+      let fieldName = sheet.getRange(range.getRow(), 1).getValue();
+      if (fieldName) {
+        // Remove emoji prefix if present
+        fieldName = String(fieldName).replace(/^👉\s*/, '').trim();
+      }
+      
       if (fieldName && 
           fieldName !== 'CIQ ID' && 
           fieldName !== '(No search performed yet)' &&
@@ -1643,12 +1661,12 @@ function searchAndDisplayFields(searchTerm) {
     const field = matchingFields[i];
     const row = 15 + i;
     
-    // Make entire row clickable (columns A-H)
+    // Make entire row clickable (columns A-H) with clear visual indicator
     const rowRange = ul.getRange(row, 1, 1, 8);
     rowRange.setBackground('#E8F0FE')
-      .setNote('Click anywhere in this row to select: ' + field.name);
+      .setNote('Double-click this row or use menu "Bob -> Select Field from Row ' + row + '" to select: ' + field.name);
     
-    ul.getRange(row, 1).setValue(field.name)
+    ul.getRange(row, 1).setValue('👉 ' + field.name)
       .setFontWeight('bold');
     
     ul.getRange(row, 2).setValue(field.jsonPath)
@@ -1662,6 +1680,16 @@ function searchAndDisplayFields(searchTerm) {
       ul.getRange(row, 4).setValue('List: ' + field.listName)
         .setBackground('#FFF3CD');
     }
+    
+    // Add "Select" button in column H
+    ul.getRange(row, 8).setValue('✓ Select')
+      .setBackground('#0F9D58')
+      .setFontColor('#FFFFFF')
+      .setFontWeight('bold')
+      .setNote('Click this cell to select: ' + field.name);
+    
+    // Store field name in column I for easy selection
+    ul.getRange(row, 9).setValue(field.name);
   }
   
   if (matchingFields.length > maxDisplay) {
