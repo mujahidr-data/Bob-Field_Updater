@@ -1439,19 +1439,16 @@ function showFieldSelector() {
     .setFontSize(14);
   ul.getRange('A1:H1').mergeAcross();
   
-  // Step 4: Search Box (prominent)
-  ul.getRange('A2').setValue('STEP 4: Search for Field').setFontWeight('bold').setFontSize(12);
-  ul.getRange('A2:H2').mergeAcross();
-  
-  ul.getRange('A3').setValue('Search:').setFontWeight('bold').setFontSize(11);
-  const searchCell = ul.getRange('B3');
+  // Search Box (always available, no step label needed)
+  ul.getRange('A2').setValue('Search Field:').setFontWeight('bold').setFontSize(11);
+  const searchCell = ul.getRange('B2');
   searchCell.setValue('')
     .setBackground('#FFFFFF')
     .setBorder(true, true, true, true, false, false, '#4285F4', SpreadsheetApp.BorderStyle.SOLID_MEDIUM)
     .setFontSize(12)
     .setNote('Type field name (e.g., "Q2", "Site", "Department") then press Enter or click Search');
   
-  const searchBtnCell = ul.getRange('C3');
+  const searchBtnCell = ul.getRange('C2');
   searchBtnCell.setValue('🔍 Search')
     .setBackground('#4285F4')
     .setFontColor('#FFFFFF')
@@ -1460,15 +1457,15 @@ function showFieldSelector() {
     .setNote('Click to search');
   
   // Selected Field Display
-  ul.getRange('A4').setValue('Selected Field:').setFontWeight('bold');
-  ul.getRange('B4').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
+  ul.getRange('A3').setValue('Selected Field:').setFontWeight('bold');
+  ul.getRange('B3').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
   
-  // Step 5: Upload Table (will be built when field is selected)
-  ul.getRange('A5').setValue('STEP 5: Upload Table').setFontWeight('bold').setFontSize(12);
+  // Upload Table (will be built when field is selected)
+  ul.getRange('A4').setValue('Upload Table').setFontWeight('bold').setFontSize(12);
+  ul.getRange('A4:H4').mergeAcross();
+  
+  ul.getRange('A5').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
   ul.getRange('A5:H5').mergeAcross();
-  
-  ul.getRange('A6').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
-  ul.getRange('A6:H6').mergeAcross();
   
   ul.setFrozenRows(1);
   autoFitAllColumns_(ul);
@@ -1477,7 +1474,7 @@ function showFieldSelector() {
   SpreadsheetApp.getActive().setActiveSheet(ul);
   SpreadsheetApp.getActive().setActiveRange(searchCell);
   
-  toast_('✅ Ready! Type in B3 and press Enter or click Search.');
+  toast_('✅ Ready! Type in B2 and press Enter or click Search.');
 }
 
 function onEdit(e) {
@@ -1487,38 +1484,38 @@ function onEdit(e) {
     
     if (sheet.getName() !== SHEET_UPLOADER) return;
     
-  // Manual search trigger: Click on search button (C3)
-  if (range.getRow() === 3 && range.getColumn() === 3) {
-    const searchTerm = sheet.getRange('B3').getValue();
+  // Manual search trigger: Click on search button (C2)
+  if (range.getRow() === 2 && range.getColumn() === 3) {
+    const searchTerm = sheet.getRange('B2').getValue();
     if (searchTerm && String(searchTerm).trim().length >= 2) {
       searchAndDisplayFields(searchTerm);
     } else {
-      SpreadsheetApp.getUi().alert('Please enter a search term (2+ characters) in cell B3 first.');
+      SpreadsheetApp.getUi().alert('Please enter a search term (2+ characters) in cell B2 first.');
     }
     return;
   }
   
-  // Auto-search when user types in B3 and presses Enter (or leaves cell)
-  if (range.getRow() === 3 && range.getColumn() === 2) {
+  // Auto-search when user types in B2 and presses Enter (or leaves cell)
+  if (range.getRow() === 2 && range.getColumn() === 2) {
       const searchTerm = range.getValue();
       if (searchTerm && String(searchTerm).trim().length >= 2) {
         // Trigger search after a brief delay
         Utilities.sleep(300);
-        const currentValue = sheet.getRange('B3').getValue();
+        const currentValue = sheet.getRange('B2').getValue();
         if (currentValue === searchTerm) {
           searchAndDisplayFields(searchTerm);
         }
     } else if (!searchTerm || String(searchTerm).trim().length === 0) {
     // Clear selected field if search is cleared
-    sheet.getRange('B4').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
-    sheet.getRange('C4').setValue('');
-    sheet.getRange('D4').setValue('');
+    sheet.getRange('B3').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
+    sheet.getRange('C3').setValue('');
+    sheet.getRange('D3').setValue('');
     // Clear upload table
-    sheet.getRange('A5:H1000').clearContent().clearFormat();
-    sheet.getRange('A5').setValue('STEP 5: Upload Table').setFontWeight('bold').setFontSize(12);
+    sheet.getRange('A4:H1000').clearContent().clearFormat();
+    sheet.getRange('A4').setValue('Upload Table').setFontWeight('bold').setFontSize(12);
+    sheet.getRange('A4:H4').mergeAcross();
+    sheet.getRange('A5').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
     sheet.getRange('A5:H5').mergeAcross();
-    sheet.getRange('A6').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
-    sheet.getRange('A6:H6').mergeAcross();
     // Clear stored field info
     sheet.getRange('D1:I1').clearContent().clearFormat();
     }
@@ -1581,18 +1578,18 @@ function searchAndDisplayFields(searchTerm) {
   });
   
   if (matchingFields.length === 0) {
-    ul.getRange('B4').setValue('No fields found matching "' + searchTerm + '"')
+    ul.getRange('B3').setValue('No fields found matching "' + searchTerm + '"')
       .setBackground(CONFIG.COLORS.WARNING)
       .setFontStyle('normal')
       .setFontColor('#000000');
-    ul.getRange('C4').setValue('');
-    ul.getRange('D4').setValue('');
+    ul.getRange('C3').setValue('');
+    ul.getRange('D3').setValue('');
     // Clear upload table
-    ul.getRange('A5:H1000').clearContent().clearFormat();
-    ul.getRange('A5').setValue('STEP 5: Upload Table').setFontWeight('bold').setFontSize(12);
+    ul.getRange('A4:H1000').clearContent().clearFormat();
+    ul.getRange('A4').setValue('Upload Table').setFontWeight('bold').setFontSize(12);
+    ul.getRange('A4:H4').mergeAcross();
+    ul.getRange('A5').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
     ul.getRange('A5:H5').mergeAcross();
-    ul.getRange('A6').setValue('(Table will appear after field is selected)').setFontStyle('italic').setFontColor('#999999');
-    ul.getRange('A6:H6').mergeAcross();
     // Clear stored field info
     ul.getRange('D1:I1').clearContent().clearFormat();
     toast_('No matching fields found. Try a different search term.');
@@ -1682,46 +1679,46 @@ function selectFieldFromList(fieldName) {
       .setBorder(true, true, true, true, false, false, '#4285F4', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
     
     // Update search cell to show selected field
-    ul.getRange('B3').setValue(field.name);
+    ul.getRange('B2').setValue(field.name);
     
-    // Update selected field display (row 4)
-    ul.getRange('A4').setValue('Selected Field:').setFontWeight('bold');
-    ul.getRange('B4').setValue(field.name)
+    // Update selected field display (row 3)
+    ul.getRange('A3').setValue('Selected Field:').setFontWeight('bold');
+    ul.getRange('B3').setValue(field.name)
       .setBackground(CONFIG.COLORS.SUCCESS)
       .setFontWeight('bold')
       .setFontColor('#000000');
-    ul.getRange('C4').setValue('(' + field.jsonPath + ')')
+    ul.getRange('C3').setValue('(' + field.jsonPath + ')')
       .setFontStyle('italic')
       .setFontSize(10)
       .setFontColor('#666666');
     
     if (listValues.length > 0) {
-      ul.getRange('D4').setValue('📋 ' + listValues.length + ' list values')
+      ul.getRange('D3').setValue('📋 ' + listValues.length + ' list values')
         .setFontSize(10)
         .setFontColor('#4285F4');
     }
     
-    // Step 5: Build Upload Table
-    ul.getRange('A5').setValue('STEP 5: Upload Table').setFontWeight('bold').setFontSize(12);
-    ul.getRange('A5:H5').mergeAcross();
+    // Build Upload Table
+    ul.getRange('A4').setValue('Upload Table').setFontWeight('bold').setFontSize(12);
+    ul.getRange('A4:H4').mergeAcross();
     
     // Data headers
     const dataHeaders = ['CIQ ID', 'New Value', 'Bob ID', 'Field Path', 'Status', 'Code', 'Error', 'Verified Value'];
-    ul.getRange(6, 1, 1, dataHeaders.length).setValues([dataHeaders]);
-    formatHeaderRow_(ul, 6, dataHeaders.length);
+    ul.getRange(5, 1, 1, dataHeaders.length).setValues([dataHeaders]);
+    formatHeaderRow_(ul, 5, dataHeaders.length);
     
     // Add instructions for data entry
-    ul.getRange('A7').setValue('Paste CIQ IDs in column A, new values in column B (starting row 8)')
+    ul.getRange('A6').setValue('Paste CIQ IDs in column A, new values in column B (starting row 7)')
       .setFontStyle('italic')
       .setFontColor('#666666')
       .setFontSize(10);
-    ul.getRange('A7:H7').mergeAcross();
+    ul.getRange('A6:H6').mergeAcross();
     
     // Set frozen rows
-    ul.setFrozenRows(6);
+    ul.setFrozenRows(5);
     
     // Focus on data entry area
-    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A8'));
+    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A7'));
     
     toast_('✓ Selected: ' + field.name + (listValues.length > 0 ? ' (' + listValues.length + ' list values)' : ''));
     
@@ -2048,11 +2045,11 @@ function validateUploadData() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 8) {
-    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 8.');
+  if (lastRow < 7) {
+    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 7.');
   }
   
-  const data = ul.getRange(8, 1, lastRow - 7, 2).getValues();
+  const data = ul.getRange(7, 1, lastRow - 6, 2).getValues();
   
   let emptyRows = 0;
   let validRows = 0;
@@ -2061,7 +2058,7 @@ function validateUploadData() {
   data.forEach((row, i) => {
     const ciq = normalizeBlank_(row[0]);
     const newVal = normalizeBlank_(row[1]);
-    const rowNum = i + 8;
+    const rowNum = i + 7;
     
     if (!ciq && !newVal) {
       emptyRows++;
@@ -2155,7 +2152,7 @@ function runQuickUpload() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 8;
+    const rowNum = i + 7;
     const ciq = normalizeBlank_(data[i][0]);
     const rawNew = normalizeBlank_(data[i][1]);
     
@@ -2457,7 +2454,7 @@ function retryFailedRows() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 8;
+    const rowNum = i + 7;
     const status = normalizeBlank_(data[i][4]);
     
     if (status !== 'FAILED') continue;
