@@ -1448,13 +1448,8 @@ function showFieldSelector() {
     .setBackground(CONFIG.COLORS.INPUT_REQUIRED)
     .setNote('Type part of the field name to search (e.g., "Site", "Department", "Location")');
   
-  ul.getRange('A4').setValue('(Auto-searches as you type, or click B4):').setFontWeight('bold').setFontStyle('italic');
-  const searchBtnCell = ul.getRange('B4');
-  searchBtnCell.setValue('🔍 Search Now')
-    .setBackground('#4285F4')
-    .setFontColor('#FFFFFF')
-    .setFontWeight('bold')
-    .setNote('Click this cell to search immediately, or just type in B3 (searches automatically after 2+ characters)');
+  ul.getRange('A4').setValue('(Auto-searches as you type - minimum 2 characters):').setFontWeight('bold').setFontStyle('italic');
+  ul.getRange('A4:H4').mergeAcross();
   
   // Results area
   ul.getRange('A5').setValue('Search Results (click a field to select):').setFontWeight('bold');
@@ -1491,7 +1486,7 @@ function showFieldSelector() {
   SpreadsheetApp.getActive().setActiveSheet(ul);
   SpreadsheetApp.getActive().setActiveRange(searchCell);
   
-  toast_('✅ Field selector ready! Type in B3 and click B4 to search.');
+  toast_('✅ Field selector ready! Type in B3 to search (auto-searches after 2+ characters).');
 }
 
 function onEdit(e) {
@@ -1511,17 +1506,6 @@ function onEdit(e) {
     } else if (!searchTerm || String(searchTerm).trim().length === 0) {
       // Clear results if search is cleared
       sheet.getRange(16, 1, 100, 8).clearContent().clearFormat();
-    }
-    return;
-  }
-  
-  // Check if user clicked on the search button (B4)
-  if (sheet.getName() === SHEET_UPLOADER && range.getRow() === 4 && range.getColumn() === 2) {
-    const searchTerm = sheet.getRange('B3').getValue();
-    if (searchTerm) {
-      searchAndDisplayFields(searchTerm);
-    } else {
-      SpreadsheetApp.getUi().alert('Please enter a search term in cell B3 first.');
     }
     return;
   }
