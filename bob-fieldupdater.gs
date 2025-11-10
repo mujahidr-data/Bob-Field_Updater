@@ -2771,16 +2771,26 @@ function clearBatchUpload() {
   props.deleteProperty('BATCH_UPLOAD_STATE');
   
   const triggers = ScriptApp.getProjectTriggers();
+  let deletedCount = 0;
   triggers.forEach(trigger => {
     if (trigger.getHandlerFunction() === 'processBatch') {
       ScriptApp.deleteTrigger(trigger);
+      deletedCount++;
     }
   });
   
+  // Release any stuck locks
+  try {
+    const lock = LockService.getScriptLock();
+    lock.releaseLock();
+  } catch(e) {
+    // Lock wasn't held, that's fine
+  }
+  
   if (hadBatch) {
-    toast_(' Batch upload stopped and cleared.');
+    toast_(`🛑 Batch upload stopped and cleared.\n\n${deletedCount} trigger(s) deleted.`);
   } else {
-    toast_(' No batch upload was running.');
+    toast_(`ℹ️ No batch upload was running.\n\n${deletedCount} trigger(s) deleted.`);
   }
 }
 
