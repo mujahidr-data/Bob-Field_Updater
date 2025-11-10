@@ -2050,9 +2050,43 @@ function validateUploadData() {
   
   const fieldName = normalizeBlank_(ul.getRange('D1').getValue());
   const fieldPath = normalizeBlank_(ul.getRange('E1').getValue());
+  const selectedFieldDisplay = normalizeBlank_(ul.getRange('B16').getValue());
   
   if (!fieldName || !fieldPath) {
-    throw new Error(' No field selected!\n\nUse " SETUP  5. Select Field to Update" first.');
+    // Check if field is displayed in row 16 but not stored
+    if (selectedFieldDisplay && selectedFieldDisplay !== '(None selected)') {
+      // Try to re-select the field from the display
+      const jsonPathDisplay = ul.getRange('C16').getValue();
+      if (jsonPathDisplay) {
+        try {
+          selectFieldFromList(selectedFieldDisplay);
+          // Re-read after selection
+          const newFieldName = normalizeBlank_(ul.getRange('D1').getValue());
+          const newFieldPath = normalizeBlank_(ul.getRange('E1').getValue());
+          if (newFieldName && newFieldPath) {
+            // Field is now selected, continue validation
+          } else {
+            throw new Error(' Field selection failed. Please click the field name in the search results again.');
+          }
+        } catch (e) {
+          throw new Error(' No field selected!\n\n' +
+            'Selected field display shows: ' + selectedFieldDisplay + '\n\n' +
+            'Please click the field name in the search results (row 15) to select it properly.');
+        }
+      } else {
+        throw new Error(' No field selected!\n\n' +
+          'Please:\n' +
+          '1. Search for a field in B3\n' +
+          '2. Click the "🔍 Search Fields" button\n' +
+          '3. Click a field name in the results (row 15) to select it');
+      }
+    } else {
+      throw new Error(' No field selected!\n\n' +
+        'Please:\n' +
+        '1. Search for a field in B3\n' +
+        '2. Click the "🔍 Search Fields" button\n' +
+        '3. Click a field name in the results (row 15) to select it');
+    }
   }
   
   const lastRow = ul.getLastRow();
