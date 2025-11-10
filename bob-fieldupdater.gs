@@ -2590,9 +2590,9 @@ function clearUploadDataAfterBatch_(stats) {
   const ul = getOrCreateSheet_(SHEET_UPLOADER);
   const lastRow = ul.getLastRow();
   
-  if (lastRow <= 16) return;
+  if (lastRow <= 17) return;
   
-  const dataRows = lastRow - 16;
+  const dataRows = lastRow - 17;
   
   const response = SpreadsheetApp.getUi().alert(
     ' Batch Upload Complete!',
@@ -2606,10 +2606,10 @@ function clearUploadDataAfterBatch_(stats) {
   );
   
   if (response === SpreadsheetApp.getUi().Button.YES) {
-    ul.getRange(17, 1, dataRows, ul.getMaxColumns()).clearContent().clearFormat();
+    ul.getRange(18, 1, dataRows, ul.getMaxColumns()).clearContent().clearFormat();
     
     if (dataRows > 100) {
-      ul.deleteRows(17, dataRows);
+      ul.deleteRows(18, dataRows);
     }
     
     toast_(' Upload data cleared. Ready for next upload!');
