@@ -1448,7 +1448,14 @@ function showFieldSelector() {
     .setBackground(CONFIG.COLORS.INPUT_REQUIRED)
     .setNote('Type part of the field name to search (e.g., "Site", "Department", "Location")');
   
-  ul.getRange('A4').setValue('(Auto-searches as you type - minimum 2 characters):').setFontWeight('bold').setFontStyle('italic');
+  ul.getRange('A4').setValue('Click to Search:').setFontWeight('bold');
+  const searchBtnCell = ul.getRange('B4');
+  searchBtnCell.setValue('🔍 Search Fields')
+    .setBackground('#4285F4')
+    .setFontColor('#FFFFFF')
+    .setFontWeight('bold')
+    .setNote('Click this cell after typing in B3, or type in B3 and press Enter');
+  
   ul.getRange('A4:H4').mergeAcross();
   
   // Results area
@@ -1460,8 +1467,8 @@ function showFieldSelector() {
   ul.getRange('A6:H6').mergeAcross();
   
   const instructions = [
-    '1. Type a search term in B3 (e.g., "Site", "Department")',
-    '2. Click the "🔍 Search Fields" button in B4',
+    '1. Type a search term in B3 (e.g., "Q2", "Site", "Department")',
+    '2. Click the "🔍 Search Fields" button in B4 (or press Enter in B3)',
     '3. Matching fields will appear below - click a field name to select it',
     '4. Paste employee CIQ IDs in column A below (starting row 17)',
     '5. Enter new values in column B',
@@ -1486,41 +1493,59 @@ function showFieldSelector() {
   SpreadsheetApp.getActive().setActiveSheet(ul);
   SpreadsheetApp.getActive().setActiveRange(searchCell);
   
-  toast_('✅ Field selector ready! Type in B3 to search (auto-searches after 2+ characters).');
+  toast_('✅ Field selector ready! Type in B3 and click B4 to search, or press Enter after typing.');
 }
 
 function onEdit(e) {
-  const sheet = e.source.getActiveSheet();
-  const range = e.range;
-  
-  // Auto-search when user types in B3 (with small delay to avoid too many searches)
-  if (sheet.getName() === SHEET_UPLOADER && range.getRow() === 3 && range.getColumn() === 2) {
-    const searchTerm = range.getValue();
-    if (searchTerm && String(searchTerm).trim().length >= 2) {
-      // Small delay to let user finish typing
-      Utilities.sleep(500);
-      const currentValue = sheet.getRange('B3').getValue();
-      if (currentValue === searchTerm) {
+  try {
+    const sheet = e.source.getActiveSheet();
+    const range = e.range;
+    
+    if (sheet.getName() !== SHEET_UPLOADER) return;
+    
+    // Manual search trigger: Click on search button (B4)
+    if (range.getRow() === 4 && range.getColumn() === 2) {
+      const searchTerm = sheet.getRange('B3').getValue();
+      if (searchTerm && String(searchTerm).trim().length >= 2) {
         searchAndDisplayFields(searchTerm);
+      } else {
+        SpreadsheetApp.getUi().alert('Please enter a search term (2+ characters) in cell B3 first.');
       }
-    } else if (!searchTerm || String(searchTerm).trim().length === 0) {
-      // Clear results if search is cleared
-      sheet.getRange(16, 1, 100, 8).clearContent().clearFormat();
+      return;
     }
-    return;
-  }
-  
-  // Check if user clicked on a field name in the results area (rows 16-115)
-  if (sheet.getName() === SHEET_UPLOADER && range.getRow() >= 16 && range.getRow() <= 115 && range.getColumn() === 1) {
-    const fieldName = range.getValue();
-    if (fieldName && fieldName !== 'CIQ ID' && fieldName.indexOf('No fields') === -1 && fieldName.indexOf('Selected:') === -1) {
-      // Check if this looks like a field name (has a path in column B)
-      const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
-      if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
-        // This is a field selection
-        selectFieldFromList(fieldName);
+    
+    // Auto-search when user types in B3 and presses Enter (or leaves cell)
+    if (range.getRow() === 3 && range.getColumn() === 2) {
+      const searchTerm = range.getValue();
+      if (searchTerm && String(searchTerm).trim().length >= 2) {
+        // Trigger search after a brief delay
+        Utilities.sleep(300);
+        const currentValue = sheet.getRange('B3').getValue();
+        if (currentValue === searchTerm) {
+          searchAndDisplayFields(searchTerm);
+        }
+      } else if (!searchTerm || String(searchTerm).trim().length === 0) {
+        // Clear results if search is cleared
+        sheet.getRange(16, 1, 100, 8).clearContent().clearFormat();
+      }
+      return;
+    }
+    
+    // Check if user clicked on a field name in the results area (rows 16-115)
+    if (range.getRow() >= 16 && range.getRow() <= 115 && range.getColumn() === 1) {
+      const fieldName = range.getValue();
+      if (fieldName && fieldName !== 'CIQ ID' && fieldName.indexOf('No fields') === -1 && fieldName.indexOf('Selected:') === -1) {
+        // Check if this looks like a field name (has a path in column B)
+        const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
+        if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
+          // This is a field selection
+          selectFieldFromList(fieldName);
+        }
       }
     }
+  } catch (error) {
+    // Silently handle errors in onEdit to avoid disrupting user workflow
+    Logger.log('onEdit error: ' + error.message);
   }
 }
 
