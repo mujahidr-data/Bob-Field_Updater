@@ -2273,10 +2273,12 @@ function processBatch() {
   // Try to build list map using field identifier first (more accurate)
   if (categoryId) {
     listMap = buildListLabelToIdByFieldId_(categoryId);
+    Logger.log(`📋 List map for ${categoryId}: ${Object.keys(listMap || {}).length} values found`);
   }
   // Fallback to listName if field ID method didn't work
-  if (!listMap && listName) {
+  if ((!listMap || Object.keys(listMap).length === 0) && listName) {
     listMap = buildListLabelToId_(listName);
+    Logger.log(`📋 Fallback list map for ${listName}: ${Object.keys(listMap || {}).length} values found`);
   }
   
   const stats = state.stats || { completed: 0, skipped: 0, failed: 0 };
@@ -2303,9 +2305,20 @@ function processBatch() {
     ul.getRange(rowNum, 4).setValue(fieldPath);
     
     let newVal = rawNew;
-    if (listMap) {
+    if (listMap && Object.keys(listMap).length > 0) {
       const hit = listMap[rawNew] || listMap[String(rawNew).toLowerCase()];
-      if (hit) newVal = hit;
+      if (hit) {
+        newVal = hit;
+        Logger.log(`✓ Mapped "${rawNew}" → "${hit}"`);
+      } else {
+        // List map exists but value not found - this will likely fail!
+        Logger.log(`⚠️ WARNING: "${rawNew}" not found in list map. Available: ${Object.keys(listMap).slice(0, 10).join(', ')}`);
+        writeUploaderResult_(ul, rowNum, 'FAILED', 400, `List value "${rawNew}" not found in available options`, '');
+        stats.failed++;
+        continue;
+      }
+    } else if (!listMap && fieldPath.indexOf('list') >= 0) {
+      Logger.log(`⚠️ No list map found for field ${fieldPath} - sending "${rawNew}" as-is (may fail)`);
     }
     
     const body = buildPutBody_(fieldPath, newVal);
