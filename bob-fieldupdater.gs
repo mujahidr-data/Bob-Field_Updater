@@ -2418,11 +2418,11 @@ function retryFailedRows() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 18) {
+  if (lastRow < 19) {
     throw new Error(' No data to retry.');
   }
   
-  const data = ul.getRange(18, 1, lastRow - 17, 5).getValues();
+  const data = ul.getRange(19, 1, lastRow - 18, 5).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
   // Get category/field identifier from I1 (stored during field selection)
@@ -2536,8 +2536,8 @@ function checkBatchStatus() {
   
   const state = JSON.parse(stateJson);
   const ul = getOrCreateSheet_(SHEET_UPLOADER);
-  const totalRows = ul.getLastRow() - 17;
-  const completed = state.nextRow - 18;
+  const totalRows = ul.getLastRow() - 18;
+  const completed = state.nextRow - 19;
   const progress = Math.round((completed / totalRows) * 100);
   const remaining = totalRows - completed;
   const estimatedMinutes = Math.ceil(remaining / BATCH_SIZE) * TRIGGER_INTERVAL;
@@ -2602,9 +2602,9 @@ function clearUploadDataAfterBatch_(stats) {
   const ul = getOrCreateSheet_(SHEET_UPLOADER);
   const lastRow = ul.getLastRow();
   
-  if (lastRow <= 17) return;
+  if (lastRow <= 18) return;
   
-  const dataRows = lastRow - 17;
+  const dataRows = lastRow - 18;
   
   const response = SpreadsheetApp.getUi().alert(
     ' Batch Upload Complete!',
@@ -2618,10 +2618,10 @@ function clearUploadDataAfterBatch_(stats) {
   );
   
   if (response === SpreadsheetApp.getUi().Button.YES) {
-    ul.getRange(18, 1, dataRows, ul.getMaxColumns()).clearContent().clearFormat();
+    ul.getRange(19, 1, dataRows, ul.getMaxColumns()).clearContent().clearFormat();
     
     if (dataRows > 100) {
-      ul.deleteRows(18, dataRows);
+      ul.deleteRows(19, dataRows);
     }
     
     toast_(' Upload data cleared. Ready for next upload!');
@@ -2636,18 +2636,18 @@ function clearAllUploadData() {
   let clearedSheets = [];
   let totalRowsCleared = 0;
   
-  if (regularSheet && regularSheet.getLastRow() > 17) {
-    const dataRows = regularSheet.getLastRow() - 17;
+  if (regularSheet && regularSheet.getLastRow() > 18) {
+    const dataRows = regularSheet.getLastRow() - 18;
     const maxCols = regularSheet.getMaxColumns();
     
-    regularSheet.getRange(18, 1, dataRows, maxCols)
+    regularSheet.getRange(19, 1, dataRows, maxCols)
       .clearContent()
       .clearFormat()
       .clearNote()
       .clearDataValidations();
     
     if (dataRows > 100) {
-      regularSheet.deleteRows(18, dataRows);
+      regularSheet.deleteRows(19, dataRows);
     }
     
     clearedSheets.push('Field Uploader');
