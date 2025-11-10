@@ -270,7 +270,10 @@
     }
 
     function filterFields(searchTerm) {
-      if (!fields || fields.length === 0) return [];
+      if (!fields || fields.length === 0) {
+        console.log('No fields available');
+        return [];
+      }
       
       const term = searchTerm.toLowerCase().trim();
       if (!term) {
@@ -278,13 +281,20 @@
         return [];
       }
       
-      return fields.filter(field => {
+      console.log('Filtering fields with term:', term, 'Total fields:', fields.length);
+      
+      const filtered = fields.filter(field => {
+        if (!field) return false;
+        
         const name = (field.name || '').toLowerCase();
         const type = (field.type || '').toLowerCase();
         const path = (field.jsonPath || '').toLowerCase();
         
         return name.includes(term) || type.includes(term) || path.includes(term);
       });
+      
+      console.log('Filtered results:', filtered.length);
+      return filtered;
     }
 
     // Search functionality
@@ -292,10 +302,17 @@
     if (searchBox) {
       searchBox.addEventListener('input', function(e) {
         const searchValue = e.target.value;
-        const filtered = filterFields(searchValue);
-        renderFields(filtered);
-        selectedField = null;
-        document.getElementById('selectBtn').disabled = true;
+        console.log('Search input changed:', searchValue);
+        
+        // Small delay to debounce rapid typing
+        clearTimeout(searchBox.searchTimeout);
+        searchBox.searchTimeout = setTimeout(function() {
+          const filtered = filterFields(searchValue);
+          console.log('Rendering', filtered.length, 'filtered fields');
+          renderFields(filtered);
+          selectedField = null;
+          document.getElementById('selectBtn').disabled = true;
+        }, 100);
       });
     }
 
