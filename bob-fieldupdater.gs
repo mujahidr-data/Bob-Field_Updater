@@ -3371,7 +3371,7 @@ function createDocumentationSheet() {
     ['', '', ''],
     ['UPLOAD SECTION', '', ''],
     ['9. Quick Upload', 'Immediate upload for ≤40 rows', 'For small datasets or urgent updates'],
-    ['10. Batch Upload', 'Scheduled upload for 40-1000+ rows (45 rows every 5 min)', 'For large datasets to avoid timeouts'],
+    ['10. Batch Upload', 'Scheduled upload for 40-1000+ rows (50 rows every min)', 'For large datasets to avoid timeouts'],
     ['11. Retry Failed', 'Re-attempts only failed rows with fresh employee lookup', 'When some rows failed due to missing CIQs or permissions'],
     ['', '', ''],
     ['MONITORING SECTION', '', ''],
@@ -3397,7 +3397,7 @@ function createDocumentationSheet() {
     ['"Unchanged (304)"', 'Field already has this value', 'This is correct! No update needed. Field already matches.'],
     ['"Missing required field"', 'Empty value in required column', 'Fill in all required fields (marked with *)'],
     ['"Field not found"', 'Field metadata not synced', 'Re-run "1. Pull Fields" from Setup menu'],
-    ['Timeout on large upload', 'Too many rows for Quick Upload', 'Use Batch Upload instead (processes 45 rows every 5 min)'],
+    ['Timeout on large upload', 'Too many rows for Quick Upload', 'Use Batch Upload instead (processes 50 rows every min)'],
     ['Wrong dropdown values', 'List values not synced', 'Re-run "2. Pull Lists" from Setup menu']
   ];
   
@@ -3451,12 +3451,13 @@ function createDocumentationSheet() {
     ['', '', ''],
     ['Batch Processing', '', ''],
     ['Quick Upload', 'Up to 40 rows', 'Processes immediately (~4 minutes max)'],
-    ['Batch Upload', '45 rows every 5 minutes', 'Auto-scheduled, can handle 1000+ rows'],
+    ['Batch Upload', '50 rows every minute', 'Auto-scheduled, can handle 1000+ rows (optimized)'],
     ['', '', ''],
     ['Time Estimates', '', ''],
-    ['100 rows', '~15 minutes', 'Use Batch Upload'],
-    ['350 rows', '~40 minutes', 'Use Batch Upload'],
-    ['1000 rows', '~2 hours', 'Use Batch Upload, can run overnight']
+    ['100 rows', '~11 minutes', 'Use Batch Upload'],
+    ['250 rows', '~27 minutes', 'Use Batch Upload (optimized timing)'],
+    ['500 rows', '~52 minutes', 'Use Batch Upload'],
+    ['1000 rows', '~1.7 hours', 'Use Batch Upload, can run overnight']
   ];
   
   sh.getRange(row, 1, rateLimits.length, rateLimits[0].length).setValues(rateLimits);
