@@ -1485,10 +1485,13 @@ function showFieldSelector() {
   ul.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
   ul.getRange('A15:H15').mergeAcross();
   
-  // Data headers at row 17 (moved down to make room for search results)
+  // Data headers at row 17 (always visible, never cleared by search)
   const dataHeaders = ['CIQ ID', 'New Value', 'Bob ID', 'Field Path', 'Status', 'Code', 'Error', 'Verified Value'];
   ul.getRange(17, 1, 1, dataHeaders.length).setValues([dataHeaders]);
   formatHeaderRow_(ul, 17, dataHeaders.length);
+  
+  // Protect data headers row from being cleared
+  ul.getRange(17, 1, 1, dataHeaders.length).setNote('Data headers - do not clear');
   
   ul.setFrozenRows(17);
   autoFitAllColumns_(ul);
@@ -1537,8 +1540,8 @@ function onEdit(e) {
       return;
     }
     
-    // Check if user clicked on a field name in the results area (rows 15-65)
-    if (range.getRow() >= 15 && range.getRow() <= 65 && range.getColumn() === 1) {
+    // Check if user clicked on a field name in the results area (rows 15-16 only)
+    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() === 1) {
       const fieldName = range.getValue();
       if (fieldName && fieldName !== 'CIQ ID' && fieldName.indexOf('No fields') === -1 && fieldName.indexOf('Selected:') === -1) {
         // Check if this looks like a field name (has a path in column B)
