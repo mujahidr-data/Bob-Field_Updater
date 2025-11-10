@@ -1,0 +1,6 @@
+# Ignore files that don't belong to this Apps Script project
+bob-consolidated.gs
+bob-consolidated-complete.gs
+bob-performance-module.gs
+node_modules/
+**/node_modules/
