@@ -1397,7 +1397,9 @@ function showFieldSelector() {
     .setFontColor(CONFIG.COLORS.HEADER_TEXT)
     .setFontWeight('bold')
     .setFontSize(14);
-  ul.getRange('A1:H1').mergeAcross();
+  ul.getRange('A1:C1').mergeAcross();
+  
+  // Reserve D1:I1 for hidden field data storage (not merged!)
   
   // Search Box (always available, no step label needed)
   ul.getRange('A2').setValue('Search Field:').setFontWeight('bold').setFontSize(11);
