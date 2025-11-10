@@ -2406,11 +2406,11 @@ function retryFailedRows() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 17) {
+  if (lastRow < 18) {
     throw new Error(' No data to retry.');
   }
   
-  const data = ul.getRange(17, 1, lastRow - 16, 5).getValues();
+  const data = ul.getRange(18, 1, lastRow - 17, 5).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
   // Get category/field identifier from I1 (stored during field selection)
