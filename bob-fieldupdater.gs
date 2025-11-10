@@ -1466,8 +1466,8 @@ function showFieldSelector() {
   const instructions = [
     '1. Type a search term in B3 (e.g., "Q2", "Site", "Department")',
     '2. Click the "🔍 Search Fields" button in B4 (or press Enter in B3)',
-    '3. Click a field name in the results below to select it',
-    '4. Paste employee CIQ IDs in column A (starting row 18) and new values in column B',
+    '3. The first matching field is automatically selected - start entering data below!',
+    '4. Paste employee CIQ IDs in column A (starting row 19) and new values in column B',
     '5. Validate with "VALIDATE -> Validate Field Upload Data"',
     '6. Upload with "UPLOAD -> Quick Upload" or "Batch Upload"'
   ];
@@ -1477,26 +1477,20 @@ function showFieldSelector() {
     ul.getRange(6 + i, 1, 1, 8).mergeAcross();
   });
   
-  // Search Results area (rows 14-16)
-  ul.getRange('A14').setValue('Search Results - Click a field name to select:').setFontWeight('bold');
+  // Selected Field Display (row 14)
+  ul.getRange('A14').setValue('Selected Field:').setFontWeight('bold');
+  ul.getRange('B14').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
   ul.getRange('A14:H14').mergeAcross();
-  ul.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
-  ul.getRange('A15:H15').mergeAcross();
   
-  // Selected Field Display (row 16)
-  ul.getRange('A16').setValue('Selected Field:').setFontWeight('bold');
-  ul.getRange('B16').setValue('(None selected)').setFontStyle('italic').setFontColor('#999999');
-  ul.getRange('A16:H16').mergeAcross();
-  
-  // Data headers at row 18 (moved down to make room for selected field display)
+  // Data headers at row 16 (simplified layout)
   const dataHeaders = ['CIQ ID', 'New Value', 'Bob ID', 'Field Path', 'Status', 'Code', 'Error', 'Verified Value'];
-  ul.getRange(18, 1, 1, dataHeaders.length).setValues([dataHeaders]);
-  formatHeaderRow_(ul, 18, dataHeaders.length);
+  ul.getRange(16, 1, 1, dataHeaders.length).setValues([dataHeaders]);
+  formatHeaderRow_(ul, 16, dataHeaders.length);
   
   // Protect data headers row from being cleared
-  ul.getRange(18, 1, 1, dataHeaders.length).setNote('Data headers - do not clear');
+  ul.getRange(16, 1, 1, dataHeaders.length).setNote('Data headers - do not clear');
   
-  ul.setFrozenRows(18);
+  ul.setFrozenRows(16);
   autoFitAllColumns_(ul);
   
   // Set active cell to search box
@@ -1535,52 +1529,17 @@ function onEdit(e) {
           searchAndDisplayFields(searchTerm);
         }
     } else if (!searchTerm || String(searchTerm).trim().length === 0) {
-    // Clear results if search is cleared (only rows 15-16, keep data headers at row 18)
-    sheet.getRange(15, 1, 2, 8).clearContent().clearFormat();
-    sheet.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
-    sheet.getRange('A15:H15').mergeAcross();
+    // Clear selected field if search is cleared
+    sheet.getRange('B14').setValue('(Search for a field first)').setFontStyle('italic').setFontColor('#999999');
+    sheet.getRange('C14').setValue('');
+    sheet.getRange('D14').setValue('');
+    // Clear stored field info
+    sheet.getRange('D1:I1').clearContent().clearFormat();
     }
       return;
     }
     
-    // Check if user clicked the "Select" button (column H) in results area (rows 15-16)
-    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() === 8) {
-      const selectButton = range.getValue();
-      if (selectButton && String(selectButton).indexOf('Select') >= 0) {
-        // Get the field name from column I (stored there)
-        const fieldName = sheet.getRange(range.getRow(), 9).getValue();
-        if (fieldName) {
-          selectFieldFromList(fieldName);
-          return;
-        }
-      }
-    }
-    
-    // Also check if user clicked anywhere in the results area (rows 15-16, columns A-G)
-    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() >= 1 && range.getColumn() <= 7) {
-      // Get the field name from column A of that row (remove emoji if present)
-      let fieldName = sheet.getRange(range.getRow(), 1).getValue();
-      if (fieldName) {
-        // Remove emoji prefix if present
-        fieldName = String(fieldName).replace(/^👉\s*/, '').trim();
-      }
-      
-      if (fieldName && 
-          fieldName !== 'CIQ ID' && 
-          fieldName !== '(No search performed yet)' &&
-          fieldName !== 'Search Results - Click a field name to select:' &&
-          fieldName.indexOf('No fields') === -1 && 
-          fieldName.indexOf('Selected:') === -1 &&
-          fieldName.indexOf('Field selected!') === -1 &&
-          fieldName.indexOf('... and') === -1) {
-        // Check if this looks like a field name (has a path in column B)
-        const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
-        if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
-          // This is a field selection - trigger it
-          selectFieldFromList(fieldName);
-        }
-      }
-    }
+    // No need for click detection - field is auto-selected on search!
   } catch (error) {
     // Silently handle errors in onEdit to avoid disrupting user workflow
     Logger.log('onEdit error: ' + error.message);
@@ -1636,74 +1595,30 @@ function searchAndDisplayFields(searchTerm) {
   });
   
   if (matchingFields.length === 0) {
-    ul.getRange('A15').setValue('No fields found matching "' + searchTerm + '"');
-    ul.getRange('A15:H15').mergeAcross();
-    ul.getRange('A15').setBackground(CONFIG.COLORS.WARNING).setFontStyle('normal').setFontColor('#000000');
+    ul.getRange('B14').setValue('No fields found matching "' + searchTerm + '"')
+      .setBackground(CONFIG.COLORS.WARNING)
+      .setFontStyle('normal')
+      .setFontColor('#000000');
+    ul.getRange('C14').setValue('');
+    ul.getRange('D14').setValue('');
+    // Clear stored field info
+    ul.getRange('D1:I1').clearContent().clearFormat();
     toast_('No matching fields found. Try a different search term.');
     return;
   }
   
-  // Clear previous results (rows 15-16 only, keep row 14 header and row 18 data headers)
-  ul.getRange(15, 1, 2, 8).clearContent().clearFormat();
-  
-  // Display results starting at row 15 (below the "Search Results" header at row 14)
-  // Limit to 2 results max to avoid overlapping with selected field display and data headers
-  const maxDisplay = Math.min(matchingFields.length, 2);
-  
-  // If only one result, auto-select it
-  if (matchingFields.length === 1) {
-    selectFieldFromList(matchingFields[0].name);
-    toast_('✓ Auto-selected: ' + matchingFields[0].name);
-    return;
-  }
-  
-  for (let i = 0; i < maxDisplay; i++) {
-    const field = matchingFields[i];
-    const row = 15 + i;
+  // Always auto-select the first result - no clicking needed!
+  if (matchingFields.length > 0) {
+    const selectedField = matchingFields[0];
+    selectFieldFromList(selectedField.name);
     
-    // Make entire row clickable (columns A-H) with clear visual indicator
-    const rowRange = ul.getRange(row, 1, 1, 8);
-    rowRange.setBackground('#E8F0FE')
-      .setNote('Double-click this row or use menu "Bob -> Select Field from Row ' + row + '" to select: ' + field.name);
-    
-    ul.getRange(row, 1).setValue('👉 ' + field.name)
-      .setFontWeight('bold');
-    
-    ul.getRange(row, 2).setValue(field.jsonPath)
-      .setFontFamily('Courier New')
-      .setFontSize(10);
-    
-    ul.getRange(row, 3).setValue(field.type || 'text')
-      .setBackground('#F1F3F4');
-    
-    if (field.listName) {
-      ul.getRange(row, 4).setValue('List: ' + field.listName)
-        .setBackground('#FFF3CD');
+    // Show info about other matches if there are more
+    if (matchingFields.length > 1) {
+      toast_('✓ Selected: ' + selectedField.name + ' (first of ' + matchingFields.length + ' matches). Start entering data below!');
+    } else {
+      toast_('✓ Selected: ' + selectedField.name + '. Start entering data below!');
     }
-    
-    // Add "Select" button in column H
-    ul.getRange(row, 8).setValue('✓ Select')
-      .setBackground('#0F9D58')
-      .setFontColor('#FFFFFF')
-      .setFontWeight('bold')
-      .setNote('Click this cell to select: ' + field.name);
-    
-    // Store field name in column I for easy selection
-    ul.getRange(row, 9).setValue(field.name);
   }
-  
-  if (matchingFields.length > maxDisplay) {
-    ul.getRange(15 + maxDisplay, 1).setValue('... and ' + (matchingFields.length - maxDisplay) + ' more fields. Refine your search.');
-    ul.getRange(15 + maxDisplay, 1, 1, 8).mergeAcross();
-    ul.getRange(15 + maxDisplay, 1).setFontStyle('italic').setBackground(CONFIG.COLORS.INFO);
-  }
-  
-  // Add border to results area
-  if (maxDisplay > 0) {
-    ul.getRange(15, 1, maxDisplay, 4).setBorder(true, true, true, true, false, false, '#4285F4', SpreadsheetApp.BorderStyle.SOLID);
-  }
-  
-  toast_('Found ' + matchingFields.length + ' matching fields. Click a field name to select it.');
 }
 
 function selectFieldFromList(fieldName) {
@@ -1777,32 +1692,25 @@ function selectFieldFromList(fieldName) {
     // Update search cell to show selected field
     ul.getRange('B3').setValue(field.name);
     
-    // Update selected field display (row 16)
-    ul.getRange('A16').setValue('Selected Field:').setFontWeight('bold');
-    ul.getRange('B16').setValue(field.name)
+    // Update selected field display (row 14)
+    ul.getRange('A14').setValue('Selected Field:').setFontWeight('bold');
+    ul.getRange('B14').setValue(field.name)
       .setBackground(CONFIG.COLORS.SUCCESS)
       .setFontWeight('bold')
       .setFontColor('#000000');
-    ul.getRange('C16').setValue('(' + field.jsonPath + ')')
+    ul.getRange('C14').setValue('(' + field.jsonPath + ')')
       .setFontStyle('italic')
       .setFontSize(10)
       .setFontColor('#666666');
     
     if (listValues.length > 0) {
-      ul.getRange('D16').setValue('📋 ' + listValues.length + ' list values')
+      ul.getRange('D14').setValue('📋 ' + listValues.length + ' list values')
         .setFontSize(10)
         .setFontColor('#4285F4');
     }
     
-    // Clear search results (rows 15 only, keep selected field display)
-    ul.getRange(15, 1, 1, 8).clearContent().clearFormat();
-    ul.getRange('A15').setValue('✅ Field selected! You can now enter data below.')
-      .setFontStyle('italic')
-      .setFontColor('#0F9D58');
-    ul.getRange('A15:H15').mergeAcross();
-    
     // Focus on data entry area
-    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A19'));
+    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A17'));
     
     toast_('✓ Selected: ' + field.name + (listValues.length > 0 ? ' (' + listValues.length + ' list values)' : ''));
     
@@ -2129,11 +2037,11 @@ function validateUploadData() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 19) {
-    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 19.');
+  if (lastRow < 17) {
+    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 17.');
   }
   
-  const data = ul.getRange(19, 1, lastRow - 18, 2).getValues();
+  const data = ul.getRange(17, 1, lastRow - 16, 2).getValues();
   
   let emptyRows = 0;
   let validRows = 0;
@@ -2142,7 +2050,7 @@ function validateUploadData() {
   data.forEach((row, i) => {
     const ciq = normalizeBlank_(row[0]);
     const newVal = normalizeBlank_(row[1]);
-    const rowNum = i + 19;
+    const rowNum = i + 17;
     
     if (!ciq && !newVal) {
       emptyRows++;
@@ -2236,7 +2144,7 @@ function runQuickUpload() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 19;
+    const rowNum = i + 17;
     const ciq = normalizeBlank_(data[i][0]);
     const rawNew = normalizeBlank_(data[i][1]);
     
@@ -2538,7 +2446,7 @@ function retryFailedRows() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 19;
+    const rowNum = i + 17;
     const status = normalizeBlank_(data[i][4]);
     
     if (status !== 'FAILED') continue;
