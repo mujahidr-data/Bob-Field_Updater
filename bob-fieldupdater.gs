@@ -1529,8 +1529,8 @@ function onEdit(e) {
           searchAndDisplayFields(searchTerm);
         }
     } else if (!searchTerm || String(searchTerm).trim().length === 0) {
-      // Clear results if search is cleared
-      sheet.getRange(15, 1, 101, 8).clearContent().clearFormat();
+      // Clear results if search is cleared (only rows 15-16, keep data headers at row 17)
+      sheet.getRange(15, 1, 2, 8).clearContent().clearFormat();
       sheet.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
       sheet.getRange('A15:H15').mergeAcross();
     }
@@ -1611,11 +1611,12 @@ function searchAndDisplayFields(searchTerm) {
     return;
   }
   
-  // Clear previous results (rows 15-115, but keep row 14 header)
-  ul.getRange(15, 1, 101, 8).clearContent().clearFormat();
+  // Clear previous results (rows 15-16 only, keep row 14 header and row 17 data headers)
+  ul.getRange(15, 1, 2, 8).clearContent().clearFormat();
   
   // Display results starting at row 15 (below the "Search Results" header at row 14)
-  const maxDisplay = Math.min(matchingFields.length, 50); // Limit to 50 results to avoid overlapping with data area
+  // Limit to 1-2 results max to avoid overlapping with data headers at row 17
+  const maxDisplay = Math.min(matchingFields.length, 2); // Only show 1-2 results to keep data headers visible
   
   for (let i = 0; i < maxDisplay; i++) {
     const field = matchingFields[i];
@@ -1707,8 +1708,8 @@ function selectFieldFromList(fieldName) {
     // Update search cell to show selected field
     ul.getRange('B3').setValue(field.name);
     
-    // Clear results area
-    ul.getRange(15, 1, 51, 8).clearContent().clearFormat();
+    // Clear results area (only rows 15-16, keep data headers at row 17)
+    ul.getRange(15, 1, 2, 8).clearContent().clearFormat();
     
     // Show confirmation with list info if applicable
     let confirmMsg = '✅ Selected: ' + field.name + ' (' + field.jsonPath + ')';
