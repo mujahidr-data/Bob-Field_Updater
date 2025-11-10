@@ -1536,15 +1536,40 @@ function searchAndDisplayFields(searchTerm) {
   // Get all fields
   const allFields = getFieldsForSelector();
   
-  // Filter fields
+  // Filter fields - PRIORITIZE column B (name) first, then other columns
   const matchingFields = allFields.filter(field => {
     const name = (field.name || '').toLowerCase();
     const type = (field.type || '').toLowerCase();
     const path = (field.jsonPath || '').toLowerCase();
     
-    return name.includes(searchTermLower) || 
-           type.includes(searchTermLower) || 
-           path.includes(searchTermLower);
+    // Primary search: column B (name) - most important
+    if (name.includes(searchTermLower)) {
+      return true;
+    }
+    // Secondary: type and path
+    return type.includes(searchTermLower) || path.includes(searchTermLower);
+  });
+  
+  // Sort results: exact name matches first, then partial name matches, then others
+  matchingFields.sort((a, b) => {
+    const aName = (a.name || '').toLowerCase();
+    const bName = (b.name || '').toLowerCase();
+    const term = searchTermLower;
+    
+    // Exact match first
+    if (aName === term && bName !== term) return -1;
+    if (bName === term && aName !== term) return 1;
+    
+    // Starts with term
+    if (aName.startsWith(term) && !bName.startsWith(term)) return -1;
+    if (bName.startsWith(term) && !aName.startsWith(term)) return 1;
+    
+    // Contains in name
+    if (aName.includes(term) && !bName.includes(term)) return -1;
+    if (bName.includes(term) && !aName.includes(term)) return 1;
+    
+    // Alphabetical
+    return aName.localeCompare(bName);
   });
   
   if (matchingFields.length === 0) {
@@ -1610,14 +1635,40 @@ function selectFieldFromList(fieldName) {
       return;
     }
     
+    // Extract category/field identifier from field ID
+    // Example: custom.category_1745852314013.field_1762762787179 -> category_1745852314013.field_1762762787179
+    let categoryId = '';
+    if (field.id) {
+      // Remove 'custom.' prefix if present
+      categoryId = String(field.id).replace(/^custom\./, '');
+    }
+    
+    // For list types, fetch the correct list values based on category/field identifier
+    let listName = field.listName || '';
+    let listValues = [];
+    
+    if (field.type === 'list' || listName) {
+      // Try to get list values from Lists sheet using the category/field identifier
+      listValues = getListValuesByFieldId_(categoryId || field.id);
+      
+      // If no values found by field ID, try using listName
+      if (listValues.length === 0 && listName) {
+        const listMap = buildListLabelToId_(listName);
+        listValues = Object.keys(listMap).filter(k => !k.toLowerCase().includes('id'));
+      }
+    }
+    
     // Store field info in hidden cells (D1-H1)
     ul.getRange('D1').setValue(field.name);
     ul.getRange('E1').setValue(field.jsonPath);
     ul.getRange('F1').setValue(field.id);
     ul.getRange('G1').setValue(field.type);
-    ul.getRange('H1').setValue(field.listName || '');
+    ul.getRange('H1').setValue(listName || '');
     
-    ul.getRange('D1:H1')
+    // Store category ID in I1 for reference
+    ul.getRange('I1').setValue(categoryId);
+    
+    ul.getRange('D1:I1')
       .setBackground('#E8F0FE')
       .setFontWeight('bold')
       .setBorder(true, true, true, true, false, false, '#4285F4', SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
@@ -1628,19 +1679,64 @@ function selectFieldFromList(fieldName) {
     // Clear results area
     ul.getRange(16, 1, 100, 8).clearContent().clearFormat();
     
-    // Show confirmation
-    ul.getRange('A16').setValue('✅ Selected: ' + field.name + ' (' + field.jsonPath + ')')
+    // Show confirmation with list info if applicable
+    let confirmMsg = '✅ Selected: ' + field.name + ' (' + field.jsonPath + ')';
+    if (listValues.length > 0) {
+      confirmMsg += '\n\n📋 List values available: ' + listValues.length + ' options';
+      if (listValues.length <= 10) {
+        confirmMsg += '\n' + listValues.slice(0, 10).join(', ');
+      }
+    }
+    
+    ul.getRange('A16').setValue(confirmMsg)
       .setBackground(CONFIG.COLORS.SUCCESS)
-      .setFontWeight('bold');
+      .setFontWeight('bold')
+      .setWrap(true);
     ul.getRange('A16:H16').mergeAcross();
     
     SpreadsheetApp.getActive().setActiveRange(ul.getRange('A17'));
     
-    toast_('✓ Selected: ' + field.name);
+    toast_('✓ Selected: ' + field.name + (listValues.length > 0 ? ' (' + listValues.length + ' list values)' : ''));
     
   } catch (error) {
     SpreadsheetApp.getUi().alert('Error selecting field: ' + error.message);
   }
+}
+
+/**
+ * Get list values from Lists sheet by field identifier
+ * @param {string} fieldId - Field identifier (e.g., "category_1745852314013.field_1762762787179")
+ * @returns {Array<string>} Array of list value labels
+ */
+function getListValuesByFieldId_(fieldId) {
+  if (!fieldId) return [];
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return [];
+  
+  const data = sh.getDataRange().getValues();
+  if (data.length < 3) return [];
+  
+  // Look for field identifier in column A (index 0)
+  const fieldIdStr = String(fieldId).trim();
+  const listValues = [];
+  
+  // Check if column A contains field identifiers
+  // Column C (index 2) should contain the list values
+  for (var r = 2; r < data.length; r++) {
+    const colA = String(data[r][0] || '').trim();
+    
+    // Match field identifier (exact or partial match)
+    if (colA === fieldIdStr || colA.indexOf(fieldIdStr) >= 0 || fieldIdStr.indexOf(colA) >= 0) {
+      const listValue = String(data[r][2] || '').trim(); // Column C
+      if (listValue) {
+        listValues.push(listValue);
+      }
+    }
+  }
+  
+  // Remove duplicates
+  return [...new Set(listValues)];
 }
 
 function getFieldsForSelector() {
