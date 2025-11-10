@@ -1543,20 +1543,21 @@ function onEdit(e) {
       return;
     }
     
-    // Check if user clicked on a field name in the results area (rows 15-16 only)
-    if (range.getRow() >= 15 && range.getRow() <= 16 && range.getColumn() === 1) {
-      const fieldName = range.getValue();
+    // Check if user clicked anywhere in the results area (rows 15-16, any column)
+    if (range.getRow() >= 15 && range.getRow() <= 16) {
+      // Get the field name from column A of that row
+      const fieldName = sheet.getRange(range.getRow(), 1).getValue();
       if (fieldName && 
           fieldName !== 'CIQ ID' && 
           fieldName !== '(No search performed yet)' &&
+          fieldName !== 'Search Results - Click a field name to select:' &&
           fieldName.indexOf('No fields') === -1 && 
           fieldName.indexOf('Selected:') === -1 &&
-          fieldName.indexOf('Field selected!') === -1) {
-        // Check if this looks like a field name (has a path in column B or C)
+          fieldName.indexOf('Field selected!') === -1 &&
+          fieldName.indexOf('... and') === -1) {
+        // Check if this looks like a field name (has a path in column B)
         const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
-        const fieldPathAlt = sheet.getRange(range.getRow(), 3).getValue();
-        if ((fieldPath && String(fieldPath).indexOf('.') >= 0) || 
-            (fieldPathAlt && String(fieldPathAlt).indexOf('.') >= 0)) {
+        if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
           // This is a field selection - trigger it
           selectFieldFromList(fieldName);
         }
@@ -1631,14 +1632,24 @@ function searchAndDisplayFields(searchTerm) {
   // Limit to 2 results max to avoid overlapping with selected field display and data headers
   const maxDisplay = Math.min(matchingFields.length, 2);
   
+  // If only one result, auto-select it
+  if (matchingFields.length === 1) {
+    selectFieldFromList(matchingFields[0].name);
+    toast_('✓ Auto-selected: ' + matchingFields[0].name);
+    return;
+  }
+  
   for (let i = 0; i < maxDisplay; i++) {
     const field = matchingFields[i];
     const row = 15 + i;
     
+    // Make entire row clickable (columns A-H)
+    const rowRange = ul.getRange(row, 1, 1, 8);
+    rowRange.setBackground('#E8F0FE')
+      .setNote('Click anywhere in this row to select: ' + field.name);
+    
     ul.getRange(row, 1).setValue(field.name)
-      .setBackground('#E8F0FE')
-      .setFontWeight('bold')
-      .setNote('Click to select this field');
+      .setFontWeight('bold');
     
     ul.getRange(row, 2).setValue(field.jsonPath)
       .setFontFamily('Courier New')
