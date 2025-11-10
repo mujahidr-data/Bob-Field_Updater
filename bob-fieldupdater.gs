@@ -1448,13 +1448,13 @@ function showFieldSelector() {
     .setBackground(CONFIG.COLORS.INPUT_REQUIRED)
     .setNote('Type part of the field name to search (e.g., "Site", "Department", "Location")');
   
-  ul.getRange('A4').setValue('Click to Search:').setFontWeight('bold');
+  ul.getRange('A4').setValue('(Auto-searches as you type, or click B4):').setFontWeight('bold').setFontStyle('italic');
   const searchBtnCell = ul.getRange('B4');
-  searchBtnCell.setValue('🔍 Search Fields')
+  searchBtnCell.setValue('🔍 Search Now')
     .setBackground('#4285F4')
     .setFontColor('#FFFFFF')
     .setFontWeight('bold')
-    .setNote('Click this cell to search for fields matching your search term');
+    .setNote('Click this cell to search immediately, or just type in B3 (searches automatically after 2+ characters)');
   
   // Results area
   ul.getRange('A5').setValue('Search Results (click a field to select):').setFontWeight('bold');
@@ -1498,7 +1498,24 @@ function onEdit(e) {
   const sheet = e.source.getActiveSheet();
   const range = e.range;
   
-  // Check if this is the search button click in Uploader sheet
+  // Auto-search when user types in B3 (with small delay to avoid too many searches)
+  if (sheet.getName() === SHEET_UPLOADER && range.getRow() === 3 && range.getColumn() === 2) {
+    const searchTerm = range.getValue();
+    if (searchTerm && String(searchTerm).trim().length >= 2) {
+      // Small delay to let user finish typing
+      Utilities.sleep(500);
+      const currentValue = sheet.getRange('B3').getValue();
+      if (currentValue === searchTerm) {
+        searchAndDisplayFields(searchTerm);
+      }
+    } else if (!searchTerm || String(searchTerm).trim().length === 0) {
+      // Clear results if search is cleared
+      sheet.getRange(16, 1, 100, 8).clearContent().clearFormat();
+    }
+    return;
+  }
+  
+  // Check if user clicked on the search button (B4)
   if (sheet.getName() === SHEET_UPLOADER && range.getRow() === 4 && range.getColumn() === 2) {
     const searchTerm = sheet.getRange('B3').getValue();
     if (searchTerm) {
@@ -1506,15 +1523,16 @@ function onEdit(e) {
     } else {
       SpreadsheetApp.getUi().alert('Please enter a search term in cell B3 first.');
     }
+    return;
   }
   
-  // Check if user clicked on a field name in the results area
-  if (sheet.getName() === SHEET_UPLOADER && range.getRow() >= 16 && range.getRow() <= 100 && range.getColumn() === 1) {
+  // Check if user clicked on a field name in the results area (rows 16-115)
+  if (sheet.getName() === SHEET_UPLOADER && range.getRow() >= 16 && range.getRow() <= 115 && range.getColumn() === 1) {
     const fieldName = range.getValue();
-    if (fieldName && fieldName !== 'CIQ ID') {
-      // Check if this looks like a field name (not a CIQ ID)
+    if (fieldName && fieldName !== 'CIQ ID' && fieldName.indexOf('No fields') === -1 && fieldName.indexOf('Selected:') === -1) {
+      // Check if this looks like a field name (has a path in column B)
       const fieldPath = sheet.getRange(range.getRow(), 2).getValue();
-      if (fieldPath && fieldPath.indexOf('.') >= 0) {
+      if (fieldPath && String(fieldPath).indexOf('.') >= 0) {
         // This is a field selection
         selectFieldFromList(fieldName);
       }
