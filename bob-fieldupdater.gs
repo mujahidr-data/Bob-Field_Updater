@@ -1739,6 +1739,80 @@ function getListValuesByFieldId_(fieldId) {
   return [...new Set(listValues)];
 }
 
+/**
+ * Build mapping of list label to ID using field identifier
+ * @param {string} fieldId - Field identifier (e.g., "category_1745852314013.field_1762762787179")
+ * @returns {Object} Map of label -> ID (both original and lowercase)
+ */
+function buildListLabelToIdByFieldId_(fieldId) {
+  if (!fieldId) return {};
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return {};
+  
+  const data = sh.getDataRange().getValues();
+  if (data.length < 3) return {};
+  
+  const fieldIdStr = String(fieldId).trim();
+  const map = {};
+  
+  // Check header row to understand structure
+  const header = data[1] ? data[1].map(function(x) { return String(x || '').trim(); }) : [];
+  const hasStandardStructure = header.indexOf('listName') >= 0 && header.indexOf('valueId') >= 0 && header.indexOf('valueLabel') >= 0;
+  
+  if (hasStandardStructure) {
+    // Standard structure: listName, valueId, valueLabel columns
+    const iList = header.indexOf('listName');
+    const iValId = header.indexOf('valueId');
+    const iValLbl = header.indexOf('valueLabel');
+    
+    for (var r = 2; r < data.length; r++) {
+      const colA = String(data[r][0] || '').trim();
+      
+      // Match field identifier in column A
+      if (colA === fieldIdStr || colA.indexOf(fieldIdStr) >= 0 || fieldIdStr.indexOf(colA) >= 0) {
+        const valId = String(data[r][iValId] || '').trim();
+        const valLbl = String(data[r][iValLbl] || '').trim();
+        
+        if (valLbl && valId) {
+          map[valLbl] = valId;
+          map[valLbl.toLowerCase()] = valId;
+        }
+      }
+    }
+  } else {
+    // Alternative structure: Column A = field identifier, Column C = list values
+    // Format: "265436380 HH" where first part is ID, second is label
+    for (var r = 2; r < data.length; r++) {
+      const colA = String(data[r][0] || '').trim();
+      const colC = String(data[r][2] || '').trim();
+      
+      // Match field identifier in column A
+      if (colA === fieldIdStr || colA.indexOf(fieldIdStr) >= 0 || fieldIdStr.indexOf(colA) >= 0) {
+        if (colC) {
+          // Parse "265436380 HH" format: ID is first part, label is second part
+          const parts = colC.split(/\s+/);
+          if (parts.length >= 2) {
+            const valId = parts[0];
+            const valLbl = parts.slice(1).join(' ');
+            
+            if (valLbl && valId) {
+              map[valLbl] = valId;
+              map[valLbl.toLowerCase()] = valId;
+            }
+          } else {
+            // If no space, treat entire value as both ID and label
+            map[colC] = colC;
+            map[colC.toLowerCase()] = colC;
+          }
+        }
+      }
+    }
+  }
+  
+  return map;
+}
+
 function getFieldsForSelector() {
   const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.META_SHEET);
   if (!sh) {
@@ -2004,8 +2078,16 @@ function runQuickUpload() {
   const data = ul.getRange(17, 1, dataRows, 2).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
+  // Get category/field identifier from I1 (stored during field selection)
+  const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
+  
   let listMap = null;
-  if (listName) {
+  // Try to build list map using field identifier first (more accurate)
+  if (categoryId) {
+    listMap = buildListLabelToIdByFieldId_(categoryId);
+  }
+  // Fallback to listName if field ID method didn't work
+  if (!listMap && listName) {
     listMap = buildListLabelToId_(listName);
   }
   
@@ -2163,8 +2245,16 @@ function processBatch() {
   const data = ul.getRange(state.nextRow, 1, endRow - state.nextRow + 1, 2).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
+  // Get category/field identifier from I1 (stored during field selection)
+  const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
+  
   let listMap = null;
-  if (listName) {
+  // Try to build list map using field identifier first (more accurate)
+  if (categoryId) {
+    listMap = buildListLabelToIdByFieldId_(categoryId);
+  }
+  // Fallback to listName if field ID method didn't work
+  if (!listMap && listName) {
     listMap = buildListLabelToId_(listName);
   }
   
