@@ -1711,7 +1711,7 @@ function selectFieldFromList(fieldName) {
     formatHeaderRow_(ul, 6, dataHeaders.length);
     
     // Add instructions for data entry
-    ul.getRange('A7').setValue('Paste CIQ IDs in column A, new values in column B (starting row 7)')
+    ul.getRange('A7').setValue('Paste CIQ IDs in column A, new values in column B (starting row 8)')
       .setFontStyle('italic')
       .setFontColor('#666666')
       .setFontSize(10);
