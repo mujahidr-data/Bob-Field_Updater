@@ -13,7 +13,7 @@ The HiBob Field Updater is a Google Apps Script tool that allows you to:
 
 ## Files
 
-- **bob-fieldupdater.gs**: Main Apps Script file with all functionality (2,690 lines)
+- **bob-fieldupdater.gs**: Main Apps Script file with all functionality (1,346 lines)
 - **FieldSelector.html**: HTML template for the field selection dialog
 
 ## Setup
