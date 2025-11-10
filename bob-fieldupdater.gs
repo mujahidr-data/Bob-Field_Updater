@@ -2299,26 +2299,43 @@ function runBatchUpload() {
 }
 
 function processBatch() {
-  const props = PropertiesService.getScriptProperties();
-  const stateJson = props.getProperty('BATCH_UPLOAD_STATE');
-  
-  if (!stateJson) return;
-  
-  const state = JSON.parse(stateJson);
-  const ul = getOrCreateSheet_(SHEET_UPLOADER);
-  const { auth } = getCreds_();
-  
-  const fieldPath = state.fieldPath;
-  const listName = normalizeBlank_(ul.getRange('H1').getValue());
-  
-  const lastRow = ul.getLastRow();
-  const endRow = Math.min(state.nextRow + BATCH_SIZE - 1, lastRow);
-  
-  if (state.nextRow > lastRow) {
-    clearBatchUpload();
-    clearUploadDataAfterBatch_(state.stats);
+  // Acquire lock to prevent multiple batches from running simultaneously
+  const lock = LockService.getScriptLock();
+  try {
+    if (!lock.tryLock(1000)) {
+      Logger.log('⚠️ Previous batch still running, skipping this trigger');
+      return; // Skip if another batch is already running
+    }
+  } catch(e) {
+    Logger.log(`⚠️ Could not acquire lock: ${e}`);
     return;
   }
+  
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const stateJson = props.getProperty('BATCH_UPLOAD_STATE');
+    
+    if (!stateJson) {
+      lock.releaseLock();
+      return;
+    }
+  
+    const state = JSON.parse(stateJson);
+    const ul = getOrCreateSheet_(SHEET_UPLOADER);
+    const { auth } = getCreds_();
+    
+    const fieldPath = state.fieldPath;
+    const listName = normalizeBlank_(ul.getRange('H1').getValue());
+    
+    const lastRow = ul.getLastRow();
+    const endRow = Math.min(state.nextRow + BATCH_SIZE - 1, lastRow);
+    
+    if (state.nextRow > lastRow) {
+      clearBatchUpload();
+      clearUploadDataAfterBatch_(state.stats);
+      lock.releaseLock();
+      return;
+    }
   
   const data = ul.getRange(state.nextRow, 1, endRow - state.nextRow + 1, 2).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
@@ -2483,11 +2500,14 @@ function processBatch() {
   
   SpreadsheetApp.flush();
   
-  state.nextRow = endRow + 1;
-  state.lastBatchTime = new Date().toISOString();
-  state.stats = stats;
-  
-  props.setProperty('BATCH_UPLOAD_STATE', JSON.stringify(state));
+    state.nextRow = endRow + 1;
+    state.lastBatchTime = new Date().toISOString();
+    state.stats = stats;
+    
+    props.setProperty('BATCH_UPLOAD_STATE', JSON.stringify(state));
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function lookupBobIdFromApi_(auth, ciq) {
@@ -3184,36 +3204,56 @@ function runBatchHistoryUpload() {
 }
 
 function processBatchHistory_() {
-  const props = PropertiesService.getScriptProperties();
-  const stateJson = props.getProperty('BATCH_HISTORY_UPLOAD_STATE');
-  
-  if (!stateJson) return;
-  
-  const state = JSON.parse(stateJson);
-  const sh = getOrCreateSheet_('History Uploader');
-  const lastRow = sh.getLastRow();
-  
-  if (state.nextRow > lastRow) {
-    clearBatchHistoryUpload();
-    
-    SpreadsheetApp.getUi().alert(
-      '✅ Batch History Upload Complete',
-      `Final Results:\n\n` +
-      `✅ Completed: ${state.stats.completed}\n` +
-      `⏭️ Skipped: ${state.stats.skipped}\n` +
-      `❌ Failed: ${state.stats.failed}\n\n` +
-      `Use "🧹 CLEANUP → Clear All Upload Data" to clean up.`,
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
+  // Acquire lock to prevent multiple batches from running simultaneously
+  const lock = LockService.getScriptLock();
+  try {
+    if (!lock.tryLock(1000)) {
+      Logger.log('⚠️ Previous history batch still running, skipping this trigger');
+      return; // Skip if another batch is already running
+    }
+  } catch(e) {
+    Logger.log(`⚠️ Could not acquire lock: ${e}`);
     return;
   }
   
-  const endRow = Math.min(state.nextRow + BATCH_SIZE - 1, lastRow);
-  processHistoryUpload_(state.tableType, state.nextRow, endRow, state);
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const stateJson = props.getProperty('BATCH_HISTORY_UPLOAD_STATE');
+    
+    if (!stateJson) {
+      lock.releaseLock();
+      return;
+    }
   
-  state.nextRow = endRow + 1;
-  state.lastBatchTime = new Date().toISOString();
-  props.setProperty('BATCH_HISTORY_UPLOAD_STATE', JSON.stringify(state));
+    const state = JSON.parse(stateJson);
+    const sh = getOrCreateSheet_('History Uploader');
+    const lastRow = sh.getLastRow();
+    
+    if (state.nextRow > lastRow) {
+      clearBatchHistoryUpload();
+      
+      SpreadsheetApp.getUi().alert(
+        '✅ Batch History Upload Complete',
+        `Final Results:\n\n` +
+        `✅ Completed: ${state.stats.completed}\n` +
+        `⏭️ Skipped: ${state.stats.skipped}\n` +
+        `❌ Failed: ${state.stats.failed}\n\n` +
+        `Use "🧹 CLEANUP → Clear All Upload Data" to clean up.`,
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      lock.releaseLock();
+      return;
+    }
+    
+    const endRow = Math.min(state.nextRow + BATCH_SIZE - 1, lastRow);
+    processHistoryUpload_(state.tableType, state.nextRow, endRow, state);
+    
+    state.nextRow = endRow + 1;
+    state.lastBatchTime = new Date().toISOString();
+    props.setProperty('BATCH_HISTORY_UPLOAD_STATE', JSON.stringify(state));
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function processHistoryUpload_(tableType, startRow, endRow, batchState) {
