@@ -1965,13 +1965,13 @@ function validateUploadData() {
   
   const fieldName = normalizeBlank_(ul.getRange('D1').getValue());
   const fieldPath = normalizeBlank_(ul.getRange('E1').getValue());
-  const selectedFieldDisplay = normalizeBlank_(ul.getRange('B16').getValue());
+  const selectedFieldDisplay = normalizeBlank_(ul.getRange('B3').getValue());
   
   if (!fieldName || !fieldPath) {
-    // Check if field is displayed in row 16 but not stored
-    if (selectedFieldDisplay && selectedFieldDisplay !== '(None selected)') {
+    // Check if field is displayed in row 3 but not stored
+    if (selectedFieldDisplay && selectedFieldDisplay !== '(Search for a field first)') {
       // Try to re-select the field from the display
-      const jsonPathDisplay = ul.getRange('C16').getValue();
+      const jsonPathDisplay = ul.getRange('C3').getValue();
       if (jsonPathDisplay) {
         try {
           selectFieldFromList(selectedFieldDisplay);
@@ -1981,26 +1981,27 @@ function validateUploadData() {
           if (newFieldName && newFieldPath) {
             // Field is now selected, continue validation
           } else {
-            throw new Error(' Field selection failed. Please click the field name in the search results again.');
+            throw new Error(' Field selection failed.\n\nPlease run "Setup Field Uploader" again and search for the field.');
           }
         } catch (e) {
           throw new Error(' No field selected!\n\n' +
             'Selected field display shows: ' + selectedFieldDisplay + '\n\n' +
-            'Please click the field name in the search results (row 15) to select it properly.');
+            'Please run "Setup Field Uploader" again and search for the field.');
         }
       } else {
         throw new Error(' No field selected!\n\n' +
           'Please:\n' +
-          '1. Search for a field in B3\n' +
-          '2. Click the "🔍 Search Fields" button\n' +
-          '3. Click a field name in the results (row 15) to select it');
+          '1. Run "SETUP → 4. Setup Field Uploader"\n' +
+          '2. Search for a field in B2\n' +
+          '3. Press Enter or click "🔍 Search"');
       }
     } else {
       throw new Error(' No field selected!\n\n' +
         'Please:\n' +
-        '1. Search for a field in B2\n' +
-        '2. Click the "🔍 Search" button (or press Enter)\n' +
-        '3. Upload table will appear automatically');
+        '1. Run "SETUP → 4. Setup Field Uploader"\n' +
+        '2. Search for a field in B2\n' +
+        '3. Press Enter or click "🔍 Search"\n' +
+        '4. Upload table will appear automatically');
     }
   }
   
