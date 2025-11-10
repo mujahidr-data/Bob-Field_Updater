@@ -2380,8 +2380,16 @@ function retryFailedRows() {
   const data = ul.getRange(17, 1, lastRow - 16, 5).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
+  // Get category/field identifier from I1 (stored during field selection)
+  const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
+  
   let listMap = null;
-  if (listName) {
+  // Try to build list map using field identifier first (more accurate)
+  if (categoryId) {
+    listMap = buildListLabelToIdByFieldId_(categoryId);
+  }
+  // Fallback to listName if field ID method didn't work
+  if (!listMap && listName) {
     listMap = buildListLabelToId_(listName);
   }
   
