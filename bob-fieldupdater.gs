@@ -2122,13 +2122,17 @@ function runQuickUpload() {
   const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
   
   let listMap = null;
-  // Try to build list map using field identifier first (more accurate)
-  if (categoryId) {
-    listMap = buildListLabelToIdByFieldId_(categoryId);
-  }
-  // Fallback to listName if field ID method didn't work
-  if (!listMap && listName) {
+  
+  // PRIORITY 1: Try listName first (shared lists across multiple fields)
+  if (listName) {
     listMap = buildListLabelToId_(listName);
+    Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values`);
+  }
+  
+  // PRIORITY 2: Try field-specific lookup if listName didn't work
+  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+    listMap = buildListLabelToIdByFieldId_(categoryId);
+    Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values`);
   }
   
   let ok = 0, skip = 0, fail = 0;
@@ -2467,13 +2471,17 @@ function retryFailedRows() {
   const categoryId = normalizeBlank_(ul.getRange('I1').getValue());
   
   let listMap = null;
-  // Try to build list map using field identifier first (more accurate)
-  if (categoryId) {
-    listMap = buildListLabelToIdByFieldId_(categoryId);
-  }
-  // Fallback to listName if field ID method didn't work
-  if (!listMap && listName) {
+  
+  // PRIORITY 1: Try listName first (shared lists across multiple fields)
+  if (listName) {
     listMap = buildListLabelToId_(listName);
+    Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values`);
+  }
+  
+  // PRIORITY 2: Try field-specific lookup if listName didn't work
+  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+    listMap = buildListLabelToIdByFieldId_(categoryId);
+    Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values`);
   }
   
   let ok = 0, skip = 0, fail = 0;
