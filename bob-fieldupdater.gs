@@ -2123,16 +2123,50 @@ function runQuickUpload() {
   
   let listMap = null;
   
+  // Debug: Show what we're working with
+  Logger.log(`🔍 Field: ${fieldPath}`);
+  Logger.log(`🔍 Category ID (I1): "${categoryId}"`);
+  Logger.log(`🔍 List Name (H1): "${listName}"`);
+  
   // PRIORITY 1: Try listName first (shared lists across multiple fields)
   if (listName) {
     listMap = buildListLabelToId_(listName);
     Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  } else {
+    Logger.log(`⚠️ No listName found in H1 - will try field ID lookup`);
   }
   
   // PRIORITY 2: Try field-specific lookup if listName didn't work
   if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
     listMap = buildListLabelToIdByFieldId_(categoryId);
     Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  }
+  
+  // PRIORITY 3: Try category-only lookup (for shared lists within a category)
+  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+    const categoryOnly = categoryId.split('.')[0];
+    if (categoryOnly && categoryOnly !== categoryId) {
+      Logger.log(`📋 Trying category-only lookup: "${categoryOnly}"`);
+      listMap = buildListLabelToIdByFieldId_(categoryOnly);
+      Logger.log(`📋 List map by category "${categoryOnly}": ${Object.keys(listMap || {}).length} values`);
+      if (listMap && Object.keys(listMap).length > 0) {
+        Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+      }
+    }
+  }
+  
+  // Final check
+  if (!listMap || Object.keys(listMap).length === 0) {
+    Logger.log(`❌ CRITICAL: No list values found by any method!`);
+    Logger.log(`   → Cell H1 (listName): "${listName}"`);
+    Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
+    Logger.log(`   → Suggestion: Run "Bob → SETUP → 2. Pull Lists"`);
   }
   
   let ok = 0, skip = 0, fail = 0;
@@ -2508,16 +2542,50 @@ function retryFailedRows() {
   
   let listMap = null;
   
+  // Debug: Show what we're working with
+  Logger.log(`🔍 Field: ${fieldPath}`);
+  Logger.log(`🔍 Category ID (I1): "${categoryId}"`);
+  Logger.log(`🔍 List Name (H1): "${listName}"`);
+  
   // PRIORITY 1: Try listName first (shared lists across multiple fields)
   if (listName) {
     listMap = buildListLabelToId_(listName);
     Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  } else {
+    Logger.log(`⚠️ No listName found in H1 - will try field ID lookup`);
   }
   
   // PRIORITY 2: Try field-specific lookup if listName didn't work
   if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
     listMap = buildListLabelToIdByFieldId_(categoryId);
     Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  }
+  
+  // PRIORITY 3: Try category-only lookup (for shared lists within a category)
+  if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
+    const categoryOnly = categoryId.split('.')[0];
+    if (categoryOnly && categoryOnly !== categoryId) {
+      Logger.log(`📋 Trying category-only lookup: "${categoryOnly}"`);
+      listMap = buildListLabelToIdByFieldId_(categoryOnly);
+      Logger.log(`📋 List map by category "${categoryOnly}": ${Object.keys(listMap || {}).length} values`);
+      if (listMap && Object.keys(listMap).length > 0) {
+        Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+      }
+    }
+  }
+  
+  // Final check
+  if (!listMap || Object.keys(listMap).length === 0) {
+    Logger.log(`❌ CRITICAL: No list values found by any method!`);
+    Logger.log(`   → Cell H1 (listName): "${listName}"`);
+    Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
+    Logger.log(`   → Suggestion: Run "Bob → SETUP → 2. Pull Lists"`);
   }
   
   let ok = 0, skip = 0, fail = 0;
