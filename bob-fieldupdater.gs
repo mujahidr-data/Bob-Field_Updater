@@ -1466,12 +1466,10 @@ function showFieldSelector() {
   const instructions = [
     '1. Type a search term in B3 (e.g., "Q2", "Site", "Department")',
     '2. Click the "🔍 Search Fields" button in B4 (or press Enter in B3)',
-    '3. Matching fields will appear in the Search Results area below',
-    '4. Click a field name to select it',
-    '5. Paste employee CIQ IDs in column A below (starting row 18)',
-    '6. Enter new values in column B',
-    '7. Validate with "VALIDATE -> Validate Field Upload Data"',
-    '8. Upload with "UPLOAD -> Quick Upload" or "Batch Upload"'
+    '3. Click a field name in the results below to select it',
+    '4. Paste employee CIQ IDs in column A (starting row 18) and new values in column B',
+    '5. Validate with "VALIDATE -> Validate Field Upload Data"',
+    '6. Upload with "UPLOAD -> Quick Upload" or "Batch Upload"'
   ];
   
   instructions.forEach((instr, i) => {
@@ -1479,21 +1477,26 @@ function showFieldSelector() {
     ul.getRange(6 + i, 1, 1, 8).mergeAcross();
   });
   
-  // Search Results area (rows 14-15)
-  ul.getRange('A14').setValue('Search Results (click a field to select):').setFontWeight('bold');
+  // Search Results area (rows 14-16)
+  ul.getRange('A14').setValue('Search Results - Click a field name to select:').setFontWeight('bold');
   ul.getRange('A14:H14').mergeAcross();
   ul.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
   ul.getRange('A15:H15').mergeAcross();
   
-  // Data headers at row 17 (always visible, never cleared by search)
+  // Selected Field Display (row 16)
+  ul.getRange('A16').setValue('Selected Field:').setFontWeight('bold');
+  ul.getRange('B16').setValue('(None selected)').setFontStyle('italic').setFontColor('#999999');
+  ul.getRange('A16:H16').mergeAcross();
+  
+  // Data headers at row 18 (moved down to make room for selected field display)
   const dataHeaders = ['CIQ ID', 'New Value', 'Bob ID', 'Field Path', 'Status', 'Code', 'Error', 'Verified Value'];
-  ul.getRange(17, 1, 1, dataHeaders.length).setValues([dataHeaders]);
-  formatHeaderRow_(ul, 17, dataHeaders.length);
+  ul.getRange(18, 1, 1, dataHeaders.length).setValues([dataHeaders]);
+  formatHeaderRow_(ul, 18, dataHeaders.length);
   
   // Protect data headers row from being cleared
-  ul.getRange(17, 1, 1, dataHeaders.length).setNote('Data headers - do not clear');
+  ul.getRange(18, 1, 1, dataHeaders.length).setNote('Data headers - do not clear');
   
-  ul.setFrozenRows(17);
+  ul.setFrozenRows(18);
   autoFitAllColumns_(ul);
   
   // Set active cell to search box
@@ -1532,10 +1535,10 @@ function onEdit(e) {
           searchAndDisplayFields(searchTerm);
         }
     } else if (!searchTerm || String(searchTerm).trim().length === 0) {
-      // Clear results if search is cleared (only rows 15-16, keep data headers at row 17)
-      sheet.getRange(15, 1, 2, 8).clearContent().clearFormat();
-      sheet.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
-      sheet.getRange('A15:H15').mergeAcross();
+    // Clear results if search is cleared (only rows 15-16, keep data headers at row 18)
+    sheet.getRange(15, 1, 2, 8).clearContent().clearFormat();
+    sheet.getRange('A15').setValue('(No search performed yet)').setFontStyle('italic').setFontColor('#999999');
+    sheet.getRange('A15:H15').mergeAcross();
     }
       return;
     }
@@ -1614,12 +1617,12 @@ function searchAndDisplayFields(searchTerm) {
     return;
   }
   
-  // Clear previous results (rows 15-16 only, keep row 14 header and row 17 data headers)
+  // Clear previous results (rows 15-16 only, keep row 14 header and row 18 data headers)
   ul.getRange(15, 1, 2, 8).clearContent().clearFormat();
   
   // Display results starting at row 15 (below the "Search Results" header at row 14)
-  // Limit to 1-2 results max to avoid overlapping with data headers at row 17
-  const maxDisplay = Math.min(matchingFields.length, 2); // Only show 1-2 results to keep data headers visible
+  // Limit to 2 results max to avoid overlapping with selected field display and data headers
+  const maxDisplay = Math.min(matchingFields.length, 2);
   
   for (let i = 0; i < maxDisplay; i++) {
     const field = matchingFields[i];
@@ -1711,27 +1714,32 @@ function selectFieldFromList(fieldName) {
     // Update search cell to show selected field
     ul.getRange('B3').setValue(field.name);
     
-    // Clear results area (only rows 15-16, keep data headers at row 17)
-    ul.getRange(15, 1, 2, 8).clearContent().clearFormat();
-    
-    // Show confirmation with list info if applicable
-    let confirmMsg = '✅ Selected: ' + field.name + ' (' + field.jsonPath + ')';
-    if (listValues.length > 0) {
-      confirmMsg += '\n\n📋 List values available: ' + listValues.length + ' options';
-      if (listValues.length <= 10) {
-        confirmMsg += '\n' + listValues.slice(0, 10).join(', ');
-      }
-    }
-    
-    ul.getRange('A15').setValue(confirmMsg)
+    // Update selected field display (row 16)
+    ul.getRange('A16').setValue('Selected Field:').setFontWeight('bold');
+    ul.getRange('B16').setValue(field.name)
       .setBackground(CONFIG.COLORS.SUCCESS)
       .setFontWeight('bold')
-      .setWrap(true)
-      .setFontStyle('normal')
       .setFontColor('#000000');
+    ul.getRange('C16').setValue('(' + field.jsonPath + ')')
+      .setFontStyle('italic')
+      .setFontSize(10)
+      .setFontColor('#666666');
+    
+    if (listValues.length > 0) {
+      ul.getRange('D16').setValue('📋 ' + listValues.length + ' list values')
+        .setFontSize(10)
+        .setFontColor('#4285F4');
+    }
+    
+    // Clear search results (rows 15 only, keep selected field display)
+    ul.getRange(15, 1, 1, 8).clearContent().clearFormat();
+    ul.getRange('A15').setValue('✅ Field selected! You can now enter data below.')
+      .setFontStyle('italic')
+      .setFontColor('#0F9D58');
     ul.getRange('A15:H15').mergeAcross();
     
-    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A18'));
+    // Focus on data entry area
+    SpreadsheetApp.getActive().setActiveRange(ul.getRange('A19'));
     
     toast_('✓ Selected: ' + field.name + (listValues.length > 0 ? ' (' + listValues.length + ' list values)' : ''));
     
@@ -2024,11 +2032,11 @@ function validateUploadData() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 18) {
-    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 18.');
+  if (lastRow < 19) {
+    throw new Error(' No data to validate!\n\nAdd employee CIQ IDs and new values starting at row 19.');
   }
   
-  const data = ul.getRange(18, 1, lastRow - 17, 2).getValues();
+  const data = ul.getRange(19, 1, lastRow - 18, 2).getValues();
   
   let emptyRows = 0;
   let validRows = 0;
@@ -2037,7 +2045,7 @@ function validateUploadData() {
   data.forEach((row, i) => {
     const ciq = normalizeBlank_(row[0]);
     const newVal = normalizeBlank_(row[1]);
-    const rowNum = i + 18;
+    const rowNum = i + 19;
     
     if (!ciq && !newVal) {
       emptyRows++;
@@ -2092,11 +2100,11 @@ function runQuickUpload() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 18) {
-    throw new Error(' No data to upload. Add CIQ IDs and values starting at row 18.');
+  if (lastRow < 19) {
+    throw new Error(' No data to upload. Add CIQ IDs and values starting at row 19.');
   }
   
-  const dataRows = lastRow - 17;
+  const dataRows = lastRow - 18;
   if (dataRows > 40) {
     const response = SpreadsheetApp.getUi().alert(
       ' Large Dataset Detected',
@@ -2112,7 +2120,7 @@ function runQuickUpload() {
     }
   }
   
-  const data = ul.getRange(18, 1, dataRows, 2).getValues();
+  const data = ul.getRange(19, 1, dataRows, 2).getValues();
   const ciqToBobMap = buildCiqToBobMap_();
   
   // Get category/field identifier from I1 (stored during field selection)
@@ -2131,7 +2139,7 @@ function runQuickUpload() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 18;
+    const rowNum = i + 19;
     const ciq = normalizeBlank_(data[i][0]);
     const rawNew = normalizeBlank_(data[i][1]);
     
@@ -2221,11 +2229,11 @@ function runBatchUpload() {
   }
   
   const lastRow = ul.getLastRow();
-  if (lastRow < 18) {
+  if (lastRow < 19) {
     throw new Error(' No data to upload.');
   }
   
-  const dataRows = lastRow - 17;
+  const dataRows = lastRow - 18;
   const estimatedMinutes = Math.ceil(dataRows / BATCH_SIZE) * TRIGGER_INTERVAL;
   
   const response = SpreadsheetApp.getUi().alert(
@@ -2244,7 +2252,7 @@ function runBatchUpload() {
   
   const props = PropertiesService.getScriptProperties();
   props.setProperty('BATCH_UPLOAD_STATE', JSON.stringify({
-    nextRow: 18,
+    nextRow: 19,
     fieldName: fieldName,
     fieldPath: fieldPath,
     startTime: new Date().toISOString(),
@@ -2433,7 +2441,7 @@ function retryFailedRows() {
   let ok = 0, skip = 0, fail = 0;
   
   for (let i = 0; i < data.length; i++) {
-    const rowNum = i + 18;
+    const rowNum = i + 19;
     const status = normalizeBlank_(data[i][4]);
     
     if (status !== 'FAILED') continue;
