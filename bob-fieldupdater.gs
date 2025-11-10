@@ -2294,17 +2294,38 @@ function processBatch() {
   
   let listMap = null;
   
+  // Debug: Show what we're working with
+  Logger.log(`🔍 Field: ${fieldPath}`);
+  Logger.log(`🔍 Category ID (I1): "${categoryId}"`);
+  Logger.log(`🔍 List Name (H1): "${listName}"`);
+  
   // PRIORITY 1: Try listName first (shared lists across multiple fields)
   // This is common for performance fields where one list is used by multiple period fields
   if (listName) {
     listMap = buildListLabelToId_(listName);
     Logger.log(`📋 List map by name "${listName}": ${Object.keys(listMap || {}).length} values found`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  } else {
+    Logger.log(`⚠️ No listName found in H1 - will try field ID lookup`);
   }
   
   // PRIORITY 2: Try field-specific lookup if listName didn't work
   if ((!listMap || Object.keys(listMap).length === 0) && categoryId) {
     listMap = buildListLabelToIdByFieldId_(categoryId);
     Logger.log(`📋 List map by field ID "${categoryId}": ${Object.keys(listMap || {}).length} values found`);
+    if (listMap && Object.keys(listMap).length > 0) {
+      Logger.log(`   Available values: ${Object.keys(listMap).filter(k => k === k.toUpperCase()).slice(0, 10).join(', ')}`);
+    }
+  }
+  
+  // Final check
+  if (!listMap || Object.keys(listMap).length === 0) {
+    Logger.log(`❌ CRITICAL: No list values found by any method!`);
+    Logger.log(`   → Cell H1 (listName): "${listName}"`);
+    Logger.log(`   → Cell I1 (categoryId): "${categoryId}"`);
+    Logger.log(`   → Suggestion: Re-run "Setup Field Uploader" and search for the field again`);
   }
   
   const stats = state.stats || { completed: 0, skipped: 0, failed: 0 };
