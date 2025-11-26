@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: 'Google Sans', Arial, sans-serif;
+      padding: 16px;
+      margin: 0;
+      background: #f8f9fa;
+    }
+    
+    .search-container {
+      position: sticky;
+      top: 0;
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 16px;
+      z-index: 10;
+    }
+    
+    #searchBox {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 14px;
+      border: 2px solid #dadce0;
+      border-radius: 8px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    
+    #searchBox:focus {
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1);
+    }
+    
+    .field-list {
+      max-height: 400px;
+      overflow-y: auto;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .field-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f1f3f4;
+      transition: background-color 0.2s;
+    }
+    
+    .field-item:last-child {
+      border-bottom: none;
+    }
+    
+    .field-item:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .field-item.selected {
+      background-color: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+    }
+    
+    .field-name {
+      font-weight: 500;
+      font-size: 14px;
+      color: #202124;
+      margin-bottom: 4px;
+    }
+    
+    .field-details {
+      font-size: 12px;
+      color: #5f6368;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .field-type {
+      display: inline-block;
+      padding: 2px 8px;
+      background: #e8f0fe;
+      color: #1967d2;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .field-path {
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+    }
+    
+    .no-results {
+      padding: 40px 16px;
+      text-align: center;
+      color: #5f6368;
+      font-size: 14px;
+    }
+    
+    .count {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 8px;
+      text-align: center;
+    }
+    
+    .button-container {
+      position: sticky;
+      bottom: 0;
+      background: white;
+      padding: 16px;
+      margin-top: 16px;
+      border-top: 1px solid #dadce0;
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      border-radius: 0 0 8px 8px;
+    }
+    
+    button {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    #selectBtn {
+      background: #1a73e8;
+      color: white;
+    }
+    
+    #selectBtn:hover:not(:disabled) {
+      background: #1765cc;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    
+    #selectBtn:disabled {
+      background: #dadce0;
+      color: #80868b;
+      cursor: not-allowed;
+    }
+    
+    #cancelBtn {
+      background: white;
+      color: #5f6368;
+      border: 1px solid #dadce0;
+    }
+    
+    #cancelBtn:hover {
+      background: #f8f9fa;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    
+    .header h2 {
+      margin: 0 0 4px 0;
+      color: #202124;
+      font-size: 20px;
+    }
+    
+    .header p {
+      margin: 0;
+      color: #5f6368;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>Select Field to Update</h2>
+    <p>Search and select which employee field you want to update</p>
+  </div>
+
+  <div class="search-container">
+    <input 
+      type="text" 
+      id="searchBox" 
+      placeholder="🔍 Search by field name, type, or path..." 
+      autofocus
+    >
+    <div class="count" id="resultCount"></div>
+  </div>
+  
+  <div class="field-list" id="fieldList"></div>
+  
+  <div class="button-container">
+    <button id="cancelBtn">Cancel</button>
+    <button id="selectBtn" disabled>Select Field</button>
+  </div>
+
+  <script>
+    let fields = <?= JSON.stringify(fields) ?>;
+    let selectedField = null;
+
+    function renderFields(filteredFields) {
+      const fieldList = document.getElementById('fieldList');
+      const resultCount = document.getElementById('resultCount');
+      
+      if (filteredFields.length === 0) {
+        fieldList.innerHTML = '<div class="no-results">❌ No fields found matching your search<br><br>Try different keywords</div>';
+        resultCount.textContent = '';
+        return;
+      }
+      
+      resultCount.textContent = `${filteredFields.length} field${filteredFields.length !== 1 ? 's' : ''} available`;
+      
+      fieldList.innerHTML = filteredFields.map((field, index) => `
+        <div class="field-item" data-index="${index}" data-name="${field.name}">
+          <div class="field-name">${field.name}</div>
+          <div class="field-details">
+            <span class="field-type">${field.type || 'text'}</span>
+            <span class="field-path">${field.jsonPath}</span>
+          </div>
+        </div>
+      `).join('');
+      
+      // Add click handlers
+      document.querySelectorAll('.field-item').forEach(item => {
+        item.addEventListener('click', function() {
+          document.querySelectorAll('.field-item').forEach(i => i.classList.remove('selected'));
+          this.classList.add('selected');
+          selectedField = filteredFields[parseInt(this.dataset.index)];
+          document.getElementById('selectBtn').disabled = false;
+        });
+      });
+    }
+
+    function filterFields(searchTerm) {
+      const term = searchTerm.toLowerCase().trim();
+      if (!term) return fields;
+      
+      return fields.filter(field => 
+        field.name.toLowerCase().includes(term) ||
+        (field.type || '').toLowerCase().includes(term) ||
+        field.jsonPath.toLowerCase().includes(term)
+      );
+    }
+
+    // Search functionality
+    document.getElementById('searchBox').addEventListener('input', function(e) {
+      const filtered = filterFields(e.target.value);
+      renderFields(filtered);
+      selectedField = null;
+      document.getElementById('selectBtn').disabled = true;
+    });
+
+    // Keyboard navigation
+    document.getElementById('searchBox').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && selectedField) {
+        selectField();
+      } else if (e.key === 'Escape') {
+        cancel();
+      }
+    });
+
+    // Buttons
+    document.getElementById('selectBtn').addEventListener('click', selectField);
+    document.getElementById('cancelBtn').addEventListener('click', cancel);
+
+    function selectField() {
+      if (selectedField) {
+        console.log('Selecting field:', selectedField.name);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            console.log('Success:', result);
+            google.script.host.close();
+          })
+          .withFailureHandler(function(err) {
+            console.error('Error:', err);
+            alert('Error selecting field: ' + err.message);
+          })
+          .setSelectedField(selectedField.name);
+      }
+    }
+
+    function cancel() {
+      google.script.host.close();
+    }
+
+    // Initial render
+    renderFields(fields);
+  </script>
+</body>
+</html>
+
