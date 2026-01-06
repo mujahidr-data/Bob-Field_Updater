@@ -3698,30 +3698,28 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Reason field: Try multiple field names that Bob might accept
-    // The UI shows "Reason*" as a dropdown
+    // Reason field: Use the FULL column path like "payroll.salary.column_1764918506367"
+    // This is how Bob identifies custom columns in salary tables
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
     if (reasonLabel) {
       const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
       
-      if (reasonId) {
-        // Try ALL possible field names that Bob might accept:
-        payload.reason = reasonId;                    // Simple "reason" field
-        payload.workChangeType = reasonId;            // Standard API field
-        
-        // Try with column path if available
-        if (reasonColumnPath) {
-          const columnKey = reasonColumnPath.split('.').pop();
-          payload[columnKey] = reasonId;
-          Logger.log(`   ✅ Setting multiple fields with ID ${reasonId}:`);
-          Logger.log(`      - reason: ${reasonId}`);
-          Logger.log(`      - workChangeType: ${reasonId}`);
-          Logger.log(`      - ${columnKey}: ${reasonId}`);
-        }
+      if (reasonId && reasonColumnPath) {
+        // Use the FULL column path as the field name
+        // e.g., "payroll.salary.column_1764918506367": "265675703"
+        payload[reasonColumnPath] = reasonId;
+        Logger.log(`   ✅ Using FULL path: ${reasonColumnPath} = ${reasonId}`);
+      } else if (reasonId) {
+        // Fallback to standard fields if no column path found
+        payload.reason = reasonId;
+        payload.workChangeType = reasonId;
+        Logger.log(`   ✅ Using standard fields with ID: ${reasonId}`);
       } else {
-        // No ID found, try label directly
+        // No ID found, try label directly with full path
+        if (reasonColumnPath) {
+          payload[reasonColumnPath] = reasonLabel;
+        }
         payload.reason = reasonLabel;
-        payload.workChangeType = reasonLabel;
         Logger.log(`   ⚠️ No ID found for "${reasonLabel}", using label directly`);
       }
     }
