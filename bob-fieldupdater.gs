@@ -2975,8 +2975,8 @@ function generateHistoryColumns() {
       { name: 'Variable Type', required: false, listName: 'Variable Type' },
       { name: 'Amount', required: false, listName: null },
       { name: 'Currency', required: false, listName: 'Currency' },
-      { name: 'Pay Period', required: false, listName: null },
-      { name: 'Pay Frequency', required: false, listName: null },
+      { name: 'Pay Period', required: false, listName: null, fixedValues: ['Monthly', 'Annual', 'Quarterly', 'Half-Yearly'] },
+      { name: 'Pay Frequency', required: false, listName: null, fixedValues: ['Monthly', 'Annually', 'Quarterly'] },
       { name: 'Reason', required: false, listName: null }
     ];
   } else if (tableType === 'Equity / Grants') {
@@ -3008,7 +3008,15 @@ function generateHistoryColumns() {
     const column = columns[colIndex];
     const range = sh.getRange(14, colNum, 1000, 1);
     
-    if (column.listName && listMap[column.listName]) {
+    if (column.fixedValues && column.fixedValues.length > 0) {
+      // Use fixed values defined in column config (takes priority)
+      range.setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(column.fixedValues, true)
+          .setHelpText(`🔽 Select ${column.name}`)
+          .build()
+      );
+    } else if (column.listName && listMap[column.listName]) {
       const listValues = Object.values(listMap[column.listName]).map(v => v.label);
       
       if (listValues.length > 0) {
@@ -3020,6 +3028,7 @@ function generateHistoryColumns() {
         );
       }
     } else if (column.name === 'Pay Period *' || column.name === 'Pay Period') {
+      // Default pay period values for Salary/Payroll
       const payPeriodVals = ['Annual', 'Hourly', 'Daily', 'Weekly', 'Monthly'];
       range.setDataValidation(
         SpreadsheetApp.newDataValidation()
@@ -3028,6 +3037,7 @@ function generateHistoryColumns() {
           .build()
       );
     } else if (column.name === 'Pay Frequency') {
+      // Default pay frequency values for Salary/Payroll
       const payFreqVals = ['Monthly', 'Semi Monthly', 'Weekly', 'Bi-Weekly'];
       range.setDataValidation(
         SpreadsheetApp.newDataValidation()
