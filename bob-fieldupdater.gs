@@ -3808,7 +3808,7 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     const jobTitleMap = buildListLabelToIdMap_('title');
     const departmentMap = buildListLabelToIdMap_('department');
     const siteMap = buildListLabelToIdMap_('site');
-    const changeTypeMap = buildListLabelToIdMap_('Change Type');
+    const changeTypeMap = buildListLabelToIdMap_('workChangeType');
     
     // Job Title - needs ID from list
     const jobTitleLabel = String(rowData[2] || '').trim();
