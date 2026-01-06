@@ -3698,31 +3698,31 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Reason field: Bob uses custom column path like "payroll.salary.column_1764918506367"
-    // Column 7 (Reason) contains the label like "Merit Increase"
-    // We need to: 1) Convert label to ID, 2) Use the correct field path
+    // Reason field: Try multiple field names that Bob might accept
+    // The UI shows "Reason*" as a dropdown
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
     if (reasonLabel) {
       const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
       
-      if (reasonId && reasonColumnPath) {
-        // Use the custom column path (e.g., payroll.salary.column_1764918506367)
-        // Extract just the column part after the last dot
-        const columnKey = reasonColumnPath.split('.').pop(); // e.g., "column_1764918506367"
-        payload[columnKey] = reasonId;
-        Logger.log(`   ✅ Custom field: ${columnKey} = ${reasonId} (from "${reasonLabel}")`);
-        
-        // Also try the full path in case Bob needs it differently
-        // payload[reasonColumnPath] = reasonId;
-      }
-      
-      // Also set workChangeType as fallback (standard Bob field)
       if (reasonId) {
-        payload.workChangeType = reasonId;
-        Logger.log(`   ✅ workChangeType = ${reasonId}`);
+        // Try ALL possible field names that Bob might accept:
+        payload.reason = reasonId;                    // Simple "reason" field
+        payload.workChangeType = reasonId;            // Standard API field
+        
+        // Try with column path if available
+        if (reasonColumnPath) {
+          const columnKey = reasonColumnPath.split('.').pop();
+          payload[columnKey] = reasonId;
+          Logger.log(`   ✅ Setting multiple fields with ID ${reasonId}:`);
+          Logger.log(`      - reason: ${reasonId}`);
+          Logger.log(`      - workChangeType: ${reasonId}`);
+          Logger.log(`      - ${columnKey}: ${reasonId}`);
+        }
       } else {
+        // No ID found, try label directly
+        payload.reason = reasonLabel;
         payload.workChangeType = reasonLabel;
-        Logger.log(`   ⚠️ No ID found for "${reasonLabel}", using label`);
+        Logger.log(`   ⚠️ No ID found for "${reasonLabel}", using label directly`);
       }
     }
     
