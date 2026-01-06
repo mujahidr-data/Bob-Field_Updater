@@ -900,6 +900,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Quick History Upload', 'runQuickHistoryUpload')
       .addItem('Batch History Upload', 'runBatchHistoryUpload')
+      .addItem('Retry Failed History Rows', 'retryFailedHistoryRows')
     )
     .addSeparator()
     
@@ -3154,14 +3155,27 @@ function runQuickHistoryUpload() {
     return;
   }
   
-  if (totalRows > 40) {
-    const response = SpreadsheetApp.getUi().alert(
-      '⚠️ Too Many Rows for Quick Upload',
-      `You have ${totalRows} rows.\n\nQuick Upload is for ≤40 rows.\nUse Batch Upload for better reliability.\n\nContinue anyway?`,
-      SpreadsheetApp.getUi().ButtonSet.YES_NO
-    );
-    if (response !== SpreadsheetApp.getUi().Button.YES) return;
-  }
+  // Rate limit: 10 rows/min = ~6 seconds per row
+  // Estimated time: totalRows * 6 seconds
+  const estimatedSeconds = totalRows * 6;
+  const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+  
+  // Confirm with user showing estimated time
+  const response = SpreadsheetApp.getUi().alert(
+    '▶️ Start Quick History Upload',
+    `Table: ${tableType}\n` +
+    `Rows: ${totalRows}\n\n` +
+    `⚠️ Bob API Rate Limit: 10 requests/minute\n` +
+    `Estimated Time: ~${estimatedMinutes} minute(s)\n\n` +
+    `The upload will process with 6 second delays\n` +
+    `to respect rate limits and avoid 429 errors.\n\n` +
+    `Continue?`,
+    SpreadsheetApp.getUi().ButtonSet.YES_NO
+  );
+  
+  if (response !== SpreadsheetApp.getUi().Button.YES) return;
+  
+  toast_(`⏳ Processing ${totalRows} rows (~${estimatedMinutes} min). Please wait...`);
   
   processHistoryUpload_(tableType, 14, lastRow);
   
@@ -3172,6 +3186,153 @@ function runQuickHistoryUpload() {
     'YELLOW = Skipped (already exists)\n' +
     'RED = Failed\n\n' +
     'Use "🧹 CLEANUP → Clear All Upload Data" when done.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+/**
+ * Retry failed history upload rows (429 rate limit errors)
+ */
+function retryFailedHistoryRows() {
+  const sh = getOrCreateSheet_('History Uploader');
+  const tableType = String(sh.getRange('B4').getValue() || '').trim();
+  
+  if (!tableType) {
+    SpreadsheetApp.getUi().alert('⚠️ No Table Selected', 'Select a table type in B4 first.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const lastRow = sh.getLastRow();
+  if (lastRow < 14) {
+    SpreadsheetApp.getUi().alert('⚠️ No Data', 'No data to retry.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const columnCount = parseInt(sh.getRange('D2').getValue() || '8');
+  const statusCol = columnCount + 2; // POST Status column
+  
+  // Find failed rows
+  const failedRows = [];
+  for (let row = 14; row <= lastRow; row++) {
+    const status = sh.getRange(row, statusCol).getValue();
+    if (status === 'FAILED') {
+      failedRows.push(row);
+    }
+  }
+  
+  if (failedRows.length === 0) {
+    SpreadsheetApp.getUi().alert('✅ No Failed Rows', 'All rows have already been processed successfully.', SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
+  
+  const estimatedMinutes = Math.ceil(failedRows.length * 6 / 60);
+  
+  const response = SpreadsheetApp.getUi().alert(
+    '🔄 Retry Failed Rows',
+    `Found ${failedRows.length} failed rows.\n\n` +
+    `Estimated Time: ~${estimatedMinutes} minute(s)\n\n` +
+    `Retry these rows?`,
+    SpreadsheetApp.getUi().ButtonSet.YES_NO
+  );
+  
+  if (response !== SpreadsheetApp.getUi().Button.YES) return;
+  
+  toast_(`⏳ Retrying ${failedRows.length} failed rows...`);
+  
+  const { auth } = getCreds_();
+  const mapCIQtoBob = buildCiqToBobMap_();
+  const statusColStart = columnCount + 1;
+  const RATE_LIMIT_DELAY_MS = 6000;
+  
+  let ok = 0, fail = 0;
+  
+  for (let i = 0; i < failedRows.length; i++) {
+    const row = failedRows[i];
+    
+    // Read row data
+    const rowData = sh.getRange(row, 1, 1, columnCount).getValues()[0];
+    const ciq = String(rowData[0] || '').trim();
+    const effectiveDate = formatIsoDate_(rowData[1]);
+    
+    if (!ciq) continue;
+    
+    const bobId = mapCIQtoBob[ciq];
+    if (!bobId) {
+      sh.getRange(row, statusColStart + 3).setValue('CIQ not found');
+      fail++;
+      continue;
+    }
+    
+    // Rate limit delay
+    if (i > 0) {
+      Utilities.sleep(RATE_LIMIT_DELAY_MS);
+    }
+    
+    const payload = buildHistoryPayload_(tableType, rowData, effectiveDate);
+    const endpoint = getHistoryEndpoint_(tableType, bobId);
+    
+    try {
+      const postResp = UrlFetchApp.fetch(endpoint, {
+        method: 'post',
+        muteHttpExceptions: true,
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        payload: JSON.stringify(payload)
+      });
+      
+      const httpCode = postResp.getResponseCode();
+      
+      if (httpCode >= 200 && httpCode < 300) {
+        sh.getRange(row, statusColStart + 1).setValue('COMPLETED').setBackground(CONFIG.COLORS.SUCCESS);
+        sh.getRange(row, statusColStart + 2).setValue(httpCode);
+        sh.getRange(row, statusColStart + 3).setValue('');
+        ok++;
+      } else if (httpCode === 429) {
+        // Still rate limited, wait longer and retry once
+        Utilities.sleep(15000);
+        const retryResp = UrlFetchApp.fetch(endpoint, {
+          method: 'post',
+          muteHttpExceptions: true,
+          headers: {
+            Authorization: `Basic ${auth}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          payload: JSON.stringify(payload)
+        });
+        
+        const retryCode = retryResp.getResponseCode();
+        if (retryCode >= 200 && retryCode < 300) {
+          sh.getRange(row, statusColStart + 1).setValue('COMPLETED').setBackground(CONFIG.COLORS.SUCCESS);
+          sh.getRange(row, statusColStart + 2).setValue(retryCode);
+          sh.getRange(row, statusColStart + 3).setValue('');
+          ok++;
+        } else {
+          sh.getRange(row, statusColStart + 2).setValue(retryCode);
+          sh.getRange(row, statusColStart + 3).setValue(retryResp.getContentText().slice(0, 200));
+          fail++;
+        }
+      } else {
+        sh.getRange(row, statusColStart + 2).setValue(httpCode);
+        sh.getRange(row, statusColStart + 3).setValue(postResp.getContentText().slice(0, 200));
+        fail++;
+      }
+    } catch(e) {
+      sh.getRange(row, statusColStart + 3).setValue(String(e).slice(0, 200));
+      fail++;
+    }
+    
+    SpreadsheetApp.flush();
+  }
+  
+  SpreadsheetApp.getUi().alert(
+    '✅ Retry Complete',
+    `Retried ${failedRows.length} rows:\n\n` +
+    `✅ Completed: ${ok}\n` +
+    `❌ Still Failed: ${fail}`,
     SpreadsheetApp.getUi().ButtonSet.OK
   );
 }
@@ -3294,7 +3455,11 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
   // Read only data columns
   const dataRange = sh.getRange(startRow, 1, endRow - startRow + 1, columnCount).getValues();
   
+  // Rate limiting: 10 POST requests per minute = 6 seconds between each
+  const RATE_LIMIT_DELAY_MS = 6000;
+  
   let ok = 0, skip = 0, fail = 0;
+  let postCount = 0; // Track POST requests for rate limiting
   
   for (let i = 0; i < dataRange.length; i++) {
     const row = startRow + i;
@@ -3334,6 +3499,11 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         const existing = JSON.parse(getResp.getContentText());
         const historyArray = Array.isArray(existing) ? existing : existing.salaries || existing.workHistory || [];
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
+      } else if (getCode === 429) {
+        // Rate limited on GET, wait and retry
+        Logger.log(`⚠️ Rate limited on GET for row ${row}, waiting...`);
+        Utilities.sleep(10000); // Wait 10 seconds
+        getStatus = 'Retry needed';
       } else {
         getStatus = `HTTP ${getCode}`;
       }
@@ -3352,38 +3522,65 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
       continue;
     }
     
-    // POST new entry
+    // Rate limit: Wait before POST if we've already made POSTs
+    if (postCount > 0) {
+      Logger.log(`⏱️ Rate limiting: waiting ${RATE_LIMIT_DELAY_MS}ms before POST #${postCount + 1}`);
+      Utilities.sleep(RATE_LIMIT_DELAY_MS);
+    }
+    
+    // POST new entry with retry logic for 429
     let postStatus = 'FAILED';
     let httpCode = '';
     let errorMsg = '';
     let entryId = '';
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
     
-    try {
-      const postResp = UrlFetchApp.fetch(endpoint, {
-        method: 'post',
-        muteHttpExceptions: true,
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        },
-        payload: JSON.stringify(payload)
-      });
-      
-      httpCode = postResp.getResponseCode();
-      
-      if (httpCode >= 200 && httpCode < 300) {
-        postStatus = 'COMPLETED';
-        ok++;
-      } else {
+    while (retryCount <= MAX_RETRIES) {
+      try {
+        const postResp = UrlFetchApp.fetch(endpoint, {
+          method: 'post',
+          muteHttpExceptions: true,
+          headers: {
+            Authorization: `Basic ${auth}`,
+            Accept: 'application/json',
+            'Content-Type': 'application/json'
+          },
+          payload: JSON.stringify(payload)
+        });
+        
+        httpCode = postResp.getResponseCode();
+        
+        if (httpCode >= 200 && httpCode < 300) {
+          postStatus = 'COMPLETED';
+          ok++;
+          postCount++;
+          break;
+        } else if (httpCode === 429) {
+          // Rate limited - exponential backoff
+          retryCount++;
+          if (retryCount <= MAX_RETRIES) {
+            const backoffMs = Math.pow(2, retryCount) * 5000; // 10s, 20s, 40s
+            Logger.log(`⚠️ 429 Rate limit on row ${row}, retry ${retryCount}/${MAX_RETRIES} in ${backoffMs}ms`);
+            Utilities.sleep(backoffMs);
+          } else {
+            postStatus = 'FAILED';
+            errorMsg = 'Rate limit exceeded after retries';
+            fail++;
+          }
+        } else {
+          postStatus = 'FAILED';
+          errorMsg = postResp.getContentText().slice(0, 200);
+          fail++;
+          postCount++;
+          break;
+        }
+      } catch(e) {
         postStatus = 'FAILED';
-        errorMsg = postResp.getContentText().slice(0, 200);
+        errorMsg = String(e).slice(0, 200);
         fail++;
+        break;
       }
-    } catch(e) {
-      postStatus = 'FAILED';
-      errorMsg = String(e).slice(0, 200);
-      fail++;
     }
     
     // Write POST status and results
@@ -3401,7 +3598,6 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     sh.getRange(row, statusColStart + 4).setValue(entryId);
     
     SpreadsheetApp.flush();
-    Utilities.sleep(100);
   }
   
   if (batchState) {
@@ -3409,6 +3605,8 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     batchState.stats.skipped += skip;
     batchState.stats.failed += fail;
   }
+  
+  Logger.log(`📊 History upload complete: ${ok} completed, ${skip} skipped, ${fail} failed`);
 }
 
 /**
