@@ -3827,11 +3827,19 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     }
     
     // Site - mandatory field
+    // API expects: site (name string) OR siteId (numeric ID)
     const siteLabel = String(rowData[6] || '').trim();
     if (siteLabel) {
       const siteId = siteMap[siteLabel] || siteMap[siteLabel.toLowerCase()];
-      payload.site = siteId || siteLabel;
-      Logger.log(`   🔍 Site: "${siteLabel}" → ${siteId || 'using label'}`);
+      if (siteId) {
+        // Use siteId (numeric) when we have the ID
+        payload.siteId = parseInt(siteId);
+        Logger.log(`   🔍 Site: "${siteLabel}" → siteId: ${siteId}`);
+      } else {
+        // Fallback to site name
+        payload.site = siteLabel;
+        Logger.log(`   🔍 Site: "${siteLabel}" (using name)`);
+      }
     }
     
     // Reports To - manager email or ID
