@@ -3599,18 +3599,14 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     let retryCount = 0;
     const MAX_RETRIES = 3;
     
-    // For Variable Pay, wrap payload in payroll.variable array structure
+    // Variable Pay uses POST to /salaries with paymentType field
     let finalPayload = payload;
     let httpMethod = 'post';
     
     if (tableType === 'Variable Pay') {
-      httpMethod = 'put';
-      finalPayload = {
-        payroll: {
-          variable: [payload]
-        }
-      };
-      Logger.log(`   📦 Variable Pay PUT payload: ${JSON.stringify(finalPayload)}`);
+      // Add field to distinguish as variable pay entry
+      finalPayload.paymentType = 'variable';
+      Logger.log(`   📦 Variable Pay payload: ${JSON.stringify(finalPayload)}`);
     }
     
     while (retryCount <= MAX_RETRIES) {
@@ -4031,8 +4027,8 @@ function getHistoryEndpoint_(tableType, bobId) {
   } else if (tableType === 'Work History') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
-    // Variable Pay uses PUT to /people/{id} endpoint (not a dedicated POST endpoint)
-    return `${base}/v1/people/${encodeURIComponent(bobId)}`;
+    // Try salaries endpoint - Variable Pay might be a type within salaries
+    return `${base}/v1/people/${encodeURIComponent(bobId)}/salaries`;
   } else if (tableType === 'Equity / Grants') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
