@@ -3590,7 +3590,8 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
       Utilities.sleep(RATE_LIMIT_DELAY_MS);
     }
     
-    // POST new entry with retry logic for 429
+    // POST/PUT new entry with retry logic for 429
+    // Variable Pay uses PUT with nested structure, others use POST
     let postStatus = 'FAILED';
     let httpCode = '';
     let errorMsg = '';
@@ -3598,17 +3599,31 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     let retryCount = 0;
     const MAX_RETRIES = 3;
     
+    // For Variable Pay, wrap payload in payroll.variable array structure
+    let finalPayload = payload;
+    let httpMethod = 'post';
+    
+    if (tableType === 'Variable Pay') {
+      httpMethod = 'put';
+      finalPayload = {
+        payroll: {
+          variable: [payload]
+        }
+      };
+      Logger.log(`   📦 Variable Pay PUT payload: ${JSON.stringify(finalPayload)}`);
+    }
+    
     while (retryCount <= MAX_RETRIES) {
       try {
         const postResp = UrlFetchApp.fetch(endpoint, {
-          method: 'post',
+          method: httpMethod,
           muteHttpExceptions: true,
           headers: {
             Authorization: `Basic ${auth}`,
             Accept: 'application/json',
             'Content-Type': 'application/json'
           },
-          payload: JSON.stringify(payload)
+          payload: JSON.stringify(finalPayload)
         });
         
         httpCode = postResp.getResponseCode();
@@ -4016,8 +4031,8 @@ function getHistoryEndpoint_(tableType, bobId) {
   } else if (tableType === 'Work History') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
-    // Variable Pay uses /payroll/variable path
-    return `${base}/v1/people/${encodeURIComponent(bobId)}/payroll/variable`;
+    // Variable Pay uses PUT to /people/{id} endpoint (not a dedicated POST endpoint)
+    return `${base}/v1/people/${encodeURIComponent(bobId)}`;
   } else if (tableType === 'Equity / Grants') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
