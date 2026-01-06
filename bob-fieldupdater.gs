@@ -3513,10 +3513,26 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         const historyArray = Array.isArray(existing) ? existing : existing.salaries || existing.workHistory || [];
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
         
-        // DEBUG: Log first existing entry to see field names Bob uses (including Reason)
+        // DEBUG: Log existing entries to find Reason field name
         if (historyArray.length > 0) {
-          Logger.log(`📥 Sample existing salary entry from Bob:`);
-          Logger.log(JSON.stringify(historyArray[0], null, 2));
+          Logger.log(`📥 Existing salary entries from Bob (looking for Reason field):`);
+          // Find entry with a reason value (not empty)
+          for (let e = 0; e < Math.min(historyArray.length, 5); e++) {
+            const entry = historyArray[e];
+            Logger.log(`\n   Entry ${e + 1}:`);
+            // Log ALL fields to find which one contains reason values
+            for (const [key, value] of Object.entries(entry)) {
+              const valStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+              // Highlight fields that might be reason-related
+              const reasonValues = ['merit', 'promotion', 'increase', 'transfer', 'adjustment'];
+              const isReasonField = reasonValues.some(rv => valStr.toLowerCase().includes(rv));
+              if (isReasonField) {
+                Logger.log(`   ⭐ ${key}: ${valStr} ← POSSIBLE REASON FIELD`);
+              } else {
+                Logger.log(`      ${key}: ${valStr}`);
+              }
+            }
+          }
         }
       } else if (getCode === 429) {
         // Rate limited on GET, wait and retry
@@ -3698,30 +3714,35 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Reason field: Use the FULL column path like "payroll.salary.column_1764918506367"
-    // This is how Bob identifies custom columns in salary tables
+    // Reason field: Try multiple approaches
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
     if (reasonLabel) {
       const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
+      Logger.log(`   🔍 Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
+      Logger.log(`   🔍 Column path: ${reasonColumnPath || 'not found'}`);
       
-      if (reasonId && reasonColumnPath) {
-        // Use the FULL column path as the field name
-        // e.g., "payroll.salary.column_1764918506367": "265675703"
+      // Try EVERY possible combination to find what works:
+      // 1. Full path with ID
+      if (reasonColumnPath && reasonId) {
         payload[reasonColumnPath] = reasonId;
-        Logger.log(`   ✅ Using FULL path: ${reasonColumnPath} = ${reasonId}`);
-      } else if (reasonId) {
-        // Fallback to standard fields if no column path found
-        payload.reason = reasonId;
-        payload.workChangeType = reasonId;
-        Logger.log(`   ✅ Using standard fields with ID: ${reasonId}`);
-      } else {
-        // No ID found, try label directly with full path
-        if (reasonColumnPath) {
-          payload[reasonColumnPath] = reasonLabel;
-        }
-        payload.reason = reasonLabel;
-        Logger.log(`   ⚠️ No ID found for "${reasonLabel}", using label directly`);
+        Logger.log(`   → ${reasonColumnPath}: ${reasonId}`);
       }
+      // 2. Full path with LABEL (some fields accept labels)
+      if (reasonColumnPath) {
+        payload[reasonColumnPath] = reasonLabel;
+        Logger.log(`   → ${reasonColumnPath}: ${reasonLabel} (label)`);
+      }
+      // 3. Just the column part with ID
+      if (reasonColumnPath && reasonId) {
+        const colKey = reasonColumnPath.split('.').pop();
+        payload[colKey] = reasonId;
+        Logger.log(`   → ${colKey}: ${reasonId}`);
+      }
+      // 4. Standard Bob fields
+      payload.reason = reasonId || reasonLabel;
+      payload.workChangeType = reasonId || reasonLabel;
+      Logger.log(`   → reason: ${reasonId || reasonLabel}`);
+      Logger.log(`   → workChangeType: ${reasonId || reasonLabel}`);
     }
     
     // Log what's in each column
