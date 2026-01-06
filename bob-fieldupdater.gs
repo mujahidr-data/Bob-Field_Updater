@@ -3999,7 +3999,7 @@ function getHistoryEndpoint_(tableType, bobId) {
   } else if (tableType === 'Work History') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
-    return `${base}/v1/people/${encodeURIComponent(bobId)}/variable-pay`;
+    return `${base}/v1/people/${encodeURIComponent(bobId)}/payroll/variable`;
   } else if (tableType === 'Equity / Grants') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
