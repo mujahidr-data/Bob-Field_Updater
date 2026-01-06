@@ -3513,7 +3513,7 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         Logger.log(`📥 RAW Bob GET response (first 2000 chars):`);
         Logger.log(getResp.getContentText().slice(0, 2000));
         
-        const historyArray = Array.isArray(existing) ? existing : existing.salaries || existing.workHistory || [];
+        const historyArray = Array.isArray(existing) ? existing : existing.values || existing.salaries || existing.workHistory || [];
         Logger.log(`📥 Found ${historyArray.length} existing entries for this employee`);
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
         
@@ -3721,35 +3721,30 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Reason field: Try multiple approaches
+    // Reason field: Must be nested inside "customColumns" object!
+    // Bob returns: { "customColumns": { "column_1764918506367": "265675703" } }
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
     if (reasonLabel) {
       const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
       Logger.log(`   🔍 Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
       Logger.log(`   🔍 Column path: ${reasonColumnPath || 'not found'}`);
       
-      // Try EVERY possible combination to find what works:
-      // 1. Full path with ID
       if (reasonColumnPath && reasonId) {
-        payload[reasonColumnPath] = reasonId;
-        Logger.log(`   → ${reasonColumnPath}: ${reasonId}`);
-      }
-      // 2. Full path with LABEL (some fields accept labels)
-      if (reasonColumnPath) {
-        payload[reasonColumnPath] = reasonLabel;
-        Logger.log(`   → ${reasonColumnPath}: ${reasonLabel} (label)`);
-      }
-      // 3. Just the column part with ID
-      if (reasonColumnPath && reasonId) {
+        // Extract just the column key (e.g., "column_1764918506367")
         const colKey = reasonColumnPath.split('.').pop();
-        payload[colKey] = reasonId;
-        Logger.log(`   → ${colKey}: ${reasonId}`);
+        
+        // NEST inside customColumns object - this is how Bob expects it!
+        payload.customColumns = {
+          [colKey]: reasonId
+        };
+        Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
+      } else if (reasonId) {
+        // Fallback if no column path
+        payload.customColumns = { reason: reasonId };
+        Logger.log(`   ✅ customColumns.reason: ${reasonId}`);
+      } else {
+        Logger.log(`   ⚠️ No ID found for "${reasonLabel}"`);
       }
-      // 4. Standard Bob fields
-      payload.reason = reasonId || reasonLabel;
-      payload.workChangeType = reasonId || reasonLabel;
-      Logger.log(`   → reason: ${reasonId || reasonLabel}`);
-      Logger.log(`   → workChangeType: ${reasonId || reasonLabel}`);
     }
     
     // Log what's in each column
