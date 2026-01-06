@@ -3822,11 +3822,21 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     // Column mapping for Variable Pay:
     // 0: CIQ ID, 1: Effective Date, 2: Variable Type, 3: Commission/Bonus %
     // 4: Amount, 5: Currency, 6: Pay Period, 7: Pay Frequency, 8: Reason
+    
+    // Based on Bob's actual structure from manual upload:
+    // - amount: { value: number, currency: string }
+    // - customColumns: { column_1702655731330: %, column_1764922472006: reasonId, column_1725449166803: freqId }
+    
     if (rowData[2]) payload.variableType = String(rowData[2]);
-    if (rowData[3]) payload.companyPercent = parseFloat(rowData[3]) || 0;
-    if (rowData[4]) payload.amount = parseFloat(rowData[4]) || 0;
-    if (rowData[5]) payload.currency = String(rowData[5]);
-    if (rowData[6]) payload.paymentPeriod = String(rowData[6]);  // Note: paymentPeriod not payPeriod
+    if (rowData[6]) payload.paymentPeriod = String(rowData[6]);
+    
+    // Amount is nested with currency
+    if (rowData[4] || rowData[5]) {
+      payload.amount = {
+        value: parseFloat(rowData[4]) || 0,
+        currency: String(rowData[5] || 'INR')
+      };
+    }
     
     Logger.log(`   Col 2 (Variable Type): ${rowData[2]}`);
     Logger.log(`   Col 3 (Commission/Bonus %): ${rowData[3]}`);
@@ -3837,11 +3847,15 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 8 (Reason): ${rowData[8]}`);
     
     // Build custom columns for Variable Pay
-    // Pay Frequency: payroll.variable.column_1725449166803
-    // Reason: payroll.variable.column_1764922472006
     const customCols = {};
     
-    // Pay Frequency mapping
+    // Commission/Bonus % → column_1702655731330
+    if (rowData[3]) {
+      customCols['column_1702655731330'] = parseFloat(rowData[3]) || 0;
+      Logger.log(`   ✅ customColumns.column_1702655731330 (Commission %): ${rowData[3]}`);
+    }
+    
+    // Pay Frequency → column_1725449166803
     const payFreqLabel = String(rowData[7] || '').trim();
     if (payFreqLabel) {
       const payFreqMap = buildListLabelToIdMap_('payroll.variable.column_1725449166803');
@@ -3849,13 +3863,10 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       if (payFreqId) {
         customCols['column_1725449166803'] = payFreqId;
         Logger.log(`   ✅ customColumns.column_1725449166803 (Pay Frequency): ${payFreqId}`);
-      } else {
-        payload.payFrequency = payFreqLabel;
-        Logger.log(`   → payFrequency: ${payFreqLabel} (no ID found)`);
       }
     }
     
-    // Reason mapping
+    // Reason → column_1764922472006
     const reasonLabel = String(rowData[8] || '').trim();
     if (reasonLabel) {
       const reasonMap = buildListLabelToIdMap_('payroll.variable.column_1764922472006');
@@ -3863,12 +3874,10 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       if (reasonId) {
         customCols['column_1764922472006'] = reasonId;
         Logger.log(`   ✅ customColumns.column_1764922472006 (Reason): ${reasonId}`);
-      } else {
-        Logger.log(`   ⚠️ No ID found for reason: ${reasonLabel}`);
       }
     }
     
-    // Add customColumns to payload if any
+    // Add customColumns to payload
     if (Object.keys(customCols).length > 0) {
       payload.customColumns = customCols;
     }
