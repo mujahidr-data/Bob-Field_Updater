@@ -3999,8 +3999,8 @@ function getHistoryEndpoint_(tableType, bobId) {
   } else if (tableType === 'Work History') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
-    // Variable Pay uses the same salaries endpoint
-    return `${base}/v1/people/${encodeURIComponent(bobId)}/salaries`;
+    // Variable Pay has its own endpoint under payroll
+    return `${base}/v1/payroll/history/variable/${encodeURIComponent(bobId)}`;
   } else if (tableType === 'Equity / Grants') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
