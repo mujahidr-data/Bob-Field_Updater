@@ -3823,10 +3823,10 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     // 0: CIQ ID, 1: Effective Date, 2: Variable Type, 3: Commission/Bonus %
     // 4: Amount, 5: Currency, 6: Pay Period, 7: Pay Frequency, 8: Reason
     if (rowData[2]) payload.variableType = String(rowData[2]);
-    if (rowData[3]) payload.commissionPercent = parseFloat(rowData[3]) || 0;
+    if (rowData[3]) payload.companyPercent = parseFloat(rowData[3]) || 0;
     if (rowData[4]) payload.amount = parseFloat(rowData[4]) || 0;
     if (rowData[5]) payload.currency = String(rowData[5]);
-    if (rowData[6]) payload.payPeriod = String(rowData[6]);
+    if (rowData[6]) payload.paymentPeriod = String(rowData[6]);  // Note: paymentPeriod not payPeriod
     
     Logger.log(`   Col 2 (Variable Type): ${rowData[2]}`);
     Logger.log(`   Col 3 (Commission/Bonus %): ${rowData[3]}`);
