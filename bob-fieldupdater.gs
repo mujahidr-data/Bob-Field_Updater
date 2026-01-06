@@ -3510,7 +3510,11 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
       
       if (getCode === 200) {
         const existing = JSON.parse(getResp.getContentText());
+        Logger.log(`📥 RAW Bob GET response (first 2000 chars):`);
+        Logger.log(getResp.getContentText().slice(0, 2000));
+        
         const historyArray = Array.isArray(existing) ? existing : existing.salaries || existing.workHistory || [];
+        Logger.log(`📥 Found ${historyArray.length} existing entries for this employee`);
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
         
         // DEBUG: Log existing entries to find Reason field name
@@ -3533,7 +3537,11 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
               }
             }
           }
+        } else {
+          Logger.log(`⚠️ No existing salary entries found for this employee`);
         }
+      } else {
+        Logger.log(`⚠️ GET returned HTTP ${getCode}: ${getResp.getContentText().slice(0, 500)}`);
       } else if (getCode === 429) {
         // Rate limited on GET, wait and retry
         Logger.log(`⚠️ Rate limited on GET for row ${row}, waiting...`);
