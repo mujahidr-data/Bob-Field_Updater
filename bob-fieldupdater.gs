@@ -2963,7 +2963,11 @@ function generateHistoryColumns() {
       { name: 'Effective Date *', required: true, listName: null },
       { name: 'Job Title', required: false, listName: 'Job Title' },
       { name: 'Department', required: false, listName: 'Department' },
+      { name: 'Department Code', required: false, listName: 'Department Code' },
+      { name: 'Job Level', required: false, listName: 'Job Level' },
       { name: 'Site', required: false, listName: 'Site' },
+      { name: 'Team', required: false, listName: null },
+      { name: 'ELT', required: false, listName: null },
       { name: 'Reports To', required: false, listName: null },
       { name: 'Change Type', required: false, listName: 'Change Type' },
       { name: 'Reason', required: false, listName: null }
@@ -3785,23 +3789,31 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     
   } else if (tableType === 'Work History') {
     // Column mapping for Work History:
-    // 0: CIQ ID, 1: Effective Date, 2: Job Title, 3: Department
-    // 4: Site, 5: Reports To, 6: Change Type, 7: Reason
-    if (rowData[2]) payload.jobTitle = String(rowData[2]);
+    // 0: CIQ ID, 1: Effective Date, 2: Job Title, 3: Department, 4: Department Code
+    // 5: Job Level, 6: Site, 7: Team, 8: ELT, 9: Reports To, 10: Change Type, 11: Reason
+    if (rowData[2]) payload.title = String(rowData[2]);
     if (rowData[3]) payload.department = String(rowData[3]);
-    if (rowData[4]) payload.site = String(rowData[4]);
-    if (rowData[5]) payload.reportsTo = String(rowData[5]);
+    if (rowData[4]) payload.departmentId = String(rowData[4]);
+    if (rowData[5]) payload.siteId = String(rowData[5]);  // Job Level might map to siteId or custom field
+    if (rowData[6]) payload.site = String(rowData[6]);
+    if (rowData[7]) payload.team = String(rowData[7]);
+    if (rowData[8]) payload.reportsToIdInCompany = String(rowData[8]);  // ELT is typically a person
+    if (rowData[9]) payload.reportsTo = { id: String(rowData[9]) };  // Reports To needs ID
     
     Logger.log(`   Col 2 (Job Title): ${rowData[2]}`);
     Logger.log(`   Col 3 (Department): ${rowData[3]}`);
-    Logger.log(`   Col 4 (Site): ${rowData[4]}`);
-    Logger.log(`   Col 5 (Reports To): ${rowData[5]}`);
-    Logger.log(`   Col 6 (Change Type): ${rowData[6]}`);
-    Logger.log(`   Col 7 (Reason): ${rowData[7]}`);
+    Logger.log(`   Col 4 (Department Code): ${rowData[4]}`);
+    Logger.log(`   Col 5 (Job Level): ${rowData[5]}`);
+    Logger.log(`   Col 6 (Site): ${rowData[6]}`);
+    Logger.log(`   Col 7 (Team): ${rowData[7]}`);
+    Logger.log(`   Col 8 (ELT): ${rowData[8]}`);
+    Logger.log(`   Col 9 (Reports To): ${rowData[9]}`);
+    Logger.log(`   Col 10 (Change Type): ${rowData[10]}`);
+    Logger.log(`   Col 11 (Reason): ${rowData[11]}`);
     
     // Reason field - check for custom column
     const { labelMap: workReasonMap, columnPath: workColumnPath } = buildHistoryReasonListMap_('work');
-    const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
+    const reasonLabel = String(rowData[11] || rowData[10] || '').trim();
     if (reasonLabel) {
       const reasonId = workReasonMap[reasonLabel] || workReasonMap[reasonLabel.toLowerCase()];
       Logger.log(`   🔍 Work Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
@@ -3813,9 +3825,16 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
         Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
       } else {
         // Fallback to standard field
-        payload.workChangeType = reasonId || reasonLabel;
-        Logger.log(`   → workChangeType: ${reasonId || reasonLabel}`);
+        payload.reason = reasonId || reasonLabel;
+        Logger.log(`   → reason: ${reasonId || reasonLabel}`);
       }
+    }
+    
+    // Change Type
+    const changeTypeLabel = String(rowData[10] || '').trim();
+    if (changeTypeLabel) {
+      payload.changeReason = changeTypeLabel;
+      Logger.log(`   → changeReason: ${changeTypeLabel}`);
     }
     
   } else if (tableType === 'Variable Pay') {
