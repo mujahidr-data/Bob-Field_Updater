@@ -3599,14 +3599,11 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     let retryCount = 0;
     const MAX_RETRIES = 3;
     
-    // Variable Pay uses POST to /salaries with paymentType field
     let finalPayload = payload;
     let httpMethod = 'post';
     
     if (tableType === 'Variable Pay') {
-      // Add field to distinguish as variable pay entry
-      finalPayload.paymentType = 'variable';
-      Logger.log(`   📦 Variable Pay payload: ${JSON.stringify(finalPayload)}`);
+      Logger.log(`   📦 Variable Pay POST to /variable: ${JSON.stringify(finalPayload)}`);
     }
     
     while (retryCount <= MAX_RETRIES) {
@@ -4027,8 +4024,9 @@ function getHistoryEndpoint_(tableType, bobId) {
   } else if (tableType === 'Work History') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
-    // Try salaries endpoint - Variable Pay might be a type within salaries
-    return `${base}/v1/people/${encodeURIComponent(bobId)}/salaries`;
+    // Variable Pay: POST /v1/people/{id}/variable
+    // https://apidocs.hibob.com/reference/post_people-id-variable
+    return `${base}/v1/people/${encodeURIComponent(bobId)}/variable`;
   } else if (tableType === 'Equity / Grants') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
