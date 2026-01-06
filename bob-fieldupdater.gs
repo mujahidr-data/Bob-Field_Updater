@@ -2973,6 +2973,7 @@ function generateHistoryColumns() {
       { name: 'CIQ ID', required: true, listName: null },
       { name: 'Effective Date *', required: true, listName: null },
       { name: 'Variable Type', required: false, listName: 'Variable Type' },
+      { name: 'Commission/Bonus %', required: false, listName: null },
       { name: 'Amount', required: false, listName: null },
       { name: 'Currency', required: false, listName: 'Currency' },
       { name: 'Pay Period', required: false, listName: null, fixedValues: ['Monthly', 'Annual', 'Quarterly', 'Half-Yearly'] },
@@ -3811,24 +3812,26 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     
   } else if (tableType === 'Variable Pay') {
     // Column mapping for Variable Pay:
-    // 0: CIQ ID, 1: Effective Date, 2: Variable Type, 3: Amount
-    // 4: Currency, 5: Pay Period, 6: Pay Frequency, 7: Reason
+    // 0: CIQ ID, 1: Effective Date, 2: Variable Type, 3: Commission/Bonus %
+    // 4: Amount, 5: Currency, 6: Pay Period, 7: Pay Frequency, 8: Reason
     if (rowData[2]) payload.variableType = String(rowData[2]);
-    if (rowData[3]) payload.amount = parseFloat(rowData[3]) || 0;
-    if (rowData[4]) payload.currency = String(rowData[4]);
-    if (rowData[5]) payload.payPeriod = String(rowData[5]);
-    if (rowData[6]) payload.payFrequency = String(rowData[6]);
+    if (rowData[3]) payload.commissionPercent = parseFloat(rowData[3]) || 0;
+    if (rowData[4]) payload.amount = parseFloat(rowData[4]) || 0;
+    if (rowData[5]) payload.currency = String(rowData[5]);
+    if (rowData[6]) payload.payPeriod = String(rowData[6]);
+    if (rowData[7]) payload.payFrequency = String(rowData[7]);
     
     Logger.log(`   Col 2 (Variable Type): ${rowData[2]}`);
-    Logger.log(`   Col 3 (Amount): ${rowData[3]}`);
-    Logger.log(`   Col 4 (Currency): ${rowData[4]}`);
-    Logger.log(`   Col 5 (Pay Period): ${rowData[5]}`);
-    Logger.log(`   Col 6 (Pay Frequency): ${rowData[6]}`);
-    Logger.log(`   Col 7 (Reason): ${rowData[7]}`);
+    Logger.log(`   Col 3 (Commission/Bonus %): ${rowData[3]}`);
+    Logger.log(`   Col 4 (Amount): ${rowData[4]}`);
+    Logger.log(`   Col 5 (Currency): ${rowData[5]}`);
+    Logger.log(`   Col 6 (Pay Period): ${rowData[6]}`);
+    Logger.log(`   Col 7 (Pay Frequency): ${rowData[7]}`);
+    Logger.log(`   Col 8 (Reason): ${rowData[8]}`);
     
     // Reason field - check for custom column
     const { labelMap: varReasonMap, columnPath: varColumnPath } = buildHistoryReasonListMap_('variable');
-    const reasonLabel = String(rowData[7] || '').trim();
+    const reasonLabel = String(rowData[8] || '').trim();
     if (reasonLabel) {
       const reasonId = varReasonMap[reasonLabel] || varReasonMap[reasonLabel.toLowerCase()];
       Logger.log(`   🔍 Variable Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
