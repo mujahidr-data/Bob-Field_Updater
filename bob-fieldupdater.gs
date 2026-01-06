@@ -3512,6 +3512,12 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         const existing = JSON.parse(getResp.getContentText());
         const historyArray = Array.isArray(existing) ? existing : existing.salaries || existing.workHistory || [];
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
+        
+        // DEBUG: Log first existing entry to see field names Bob uses (including Reason)
+        if (historyArray.length > 0) {
+          Logger.log(`📥 Sample existing salary entry from Bob:`);
+          Logger.log(JSON.stringify(historyArray[0], null, 2));
+        }
       } else if (getCode === 429) {
         // Rate limited on GET, wait and retry
         Logger.log(`⚠️ Rate limited on GET for row ${row}, waiting...`);
@@ -3679,7 +3685,7 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
   Logger.log(`   effectiveDate: ${effectiveDate}`);
   
   // Build list lookup for reason/change type fields
-  const reasonListMap = buildSalaryReasonListMap_();
+  const { labelMap: reasonLabelMap, columnPath: reasonColumnPath } = buildSalaryReasonListMap_();
   
   if (tableType === 'Salary / Payroll') {
     // Column mapping for Salary/Payroll:
@@ -3692,17 +3698,32 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Bob API uses "workChangeType" field with the LIST ID, not label!
+    // Reason field: Bob uses custom column path like "payroll.salary.column_1764918506367"
     // Column 7 (Reason) contains the label like "Merit Increase"
-    // We need to convert it to the ID from the list
+    // We need to: 1) Convert label to ID, 2) Use the correct field path
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
-    if (reasonLabel && reasonListMap[reasonLabel]) {
-      payload.workChangeType = reasonListMap[reasonLabel];
-      Logger.log(`   ✅ Mapped "${reasonLabel}" → ID: ${reasonListMap[reasonLabel]}`);
-    } else if (reasonLabel) {
-      // If no mapping found, try sending the label directly (might work for some configs)
-      payload.workChangeType = reasonLabel;
-      Logger.log(`   ⚠️ No ID found for "${reasonLabel}", sending label directly`);
+    if (reasonLabel) {
+      const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
+      
+      if (reasonId && reasonColumnPath) {
+        // Use the custom column path (e.g., payroll.salary.column_1764918506367)
+        // Extract just the column part after the last dot
+        const columnKey = reasonColumnPath.split('.').pop(); // e.g., "column_1764918506367"
+        payload[columnKey] = reasonId;
+        Logger.log(`   ✅ Custom field: ${columnKey} = ${reasonId} (from "${reasonLabel}")`);
+        
+        // Also try the full path in case Bob needs it differently
+        // payload[reasonColumnPath] = reasonId;
+      }
+      
+      // Also set workChangeType as fallback (standard Bob field)
+      if (reasonId) {
+        payload.workChangeType = reasonId;
+        Logger.log(`   ✅ workChangeType = ${reasonId}`);
+      } else {
+        payload.workChangeType = reasonLabel;
+        Logger.log(`   ⚠️ No ID found for "${reasonLabel}", using label`);
+      }
     }
     
     // Log what's in each column
@@ -3723,10 +3744,9 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     if (rowData[5]) payload.reportsTo = String(rowData[5]);
     
     const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
-    if (reasonLabel && reasonListMap[reasonLabel]) {
-      payload.workChangeType = reasonListMap[reasonLabel];
-    } else if (reasonLabel) {
-      payload.workChangeType = reasonLabel;
+    if (reasonLabel) {
+      const reasonId = reasonLabelMap[reasonLabel] || reasonLabelMap[reasonLabel.toLowerCase()];
+      payload.workChangeType = reasonId || reasonLabel;
     }
     
   } else if (tableType === 'Variable Pay') {
@@ -3746,17 +3766,21 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
 
 /**
  * Build a map of Reason/Change Type labels to their IDs from Bob Lists sheet
- * Looks for lists related to salary/payroll reason fields
+ * Also captures the column path for custom fields
+ * Returns: { labelMap: {label: id}, columnPath: string }
  */
 function buildSalaryReasonListMap_() {
   const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Bob Lists');
   if (!sh) {
     Logger.log('⚠️ Bob Lists sheet not found');
-    return {};
+    return { labelMap: {}, columnPath: null };
   }
   
   const data = sh.getDataRange().getValues();
-  const map = {};
+  const labelMap = {};
+  let columnPath = null;
+  
+  Logger.log(`🔍 Scanning Bob Lists sheet (${data.length} rows)...`);
   
   // Look for salary-related list entries (payroll.salary.column_*)
   for (let i = 1; i < data.length; i++) {
@@ -3765,18 +3789,47 @@ function buildSalaryReasonListMap_() {
     const valueLabel = String(data[i][2] || '').trim();
     
     // Match salary reason/change type lists
-    if (listName.includes('payroll.salary') || listName.includes('Change Type') || 
-        listName.toLowerCase().includes('reason')) {
+    if (listName.includes('payroll.salary.column_')) {
+      // Capture the column path (e.g., payroll.salary.column_1764918506367)
+      if (!columnPath) {
+        columnPath = listName;
+        Logger.log(`   📍 Found custom column: ${columnPath}`);
+      }
+      
       if (valueLabel && valueId) {
-        map[valueLabel] = valueId;
-        // Also add lowercase version for case-insensitive matching
-        map[valueLabel.toLowerCase()] = valueId;
+        labelMap[valueLabel] = valueId;
+        labelMap[valueLabel.toLowerCase()] = valueId;
       }
     }
   }
   
-  Logger.log(`📋 Built salary reason map with ${Object.keys(map).length / 2} entries`);
-  return map;
+  const uniqueCount = Object.keys(labelMap).filter(k => k !== k.toLowerCase()).length;
+  Logger.log(`📋 Built salary reason map with ${uniqueCount} entries, column: ${columnPath}`);
+  
+  return { labelMap, columnPath };
+}
+
+/**
+ * Test function to debug the reason mapping
+ * Run this manually from Apps Script editor
+ */
+function testReasonMapping() {
+  const map = buildSalaryReasonListMap_();
+  Logger.log('=== Reason Map Contents ===');
+  const uniqueKeys = Object.keys(map).filter(k => k === k.toLowerCase() === false || k === k);
+  for (const key of Object.keys(map)) {
+    if (key !== key.toLowerCase()) {
+      Logger.log(`  "${key}" → ${map[key]}`);
+    }
+  }
+  
+  // Test specific lookups
+  const testValues = ['Merit Increase', 'Promotion', 'New Hire'];
+  Logger.log('=== Test Lookups ===');
+  for (const val of testValues) {
+    const id = map[val] || map[val.toLowerCase()];
+    Logger.log(`  "${val}" → ${id || 'NOT FOUND'}`);
+  }
 }
 
 function getHistoryEndpoint_(tableType, bobId) {
