@@ -3617,63 +3617,96 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
 function formatIsoDate_(dateValue) {
   if (!dateValue) return '';
   
-  let date;
-  
-  // Handle Date objects
-  if (dateValue instanceof Date) {
-    date = dateValue;
-  }
-  // Handle strings that might already be dates
-  else if (typeof dateValue === 'string') {
+  // If already a string in YYYY-MM-DD format, return as-is
+  if (typeof dateValue === 'string') {
     const trimmed = dateValue.trim();
-    // If already in YYYY-MM-DD format, return as-is
     if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       return trimmed;
     }
-    date = new Date(trimmed);
-  }
-  // Handle numbers (Excel serial dates)
-  else if (typeof dateValue === 'number') {
-    date = new Date((dateValue - 25569) * 86400 * 1000);
-  }
-  else {
+    // Try to parse other date string formats
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      // Use spreadsheet timezone to avoid shifts
+      const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+      return Utilities.formatDate(parsed, tz, 'yyyy-MM-dd');
+    }
+    Logger.log(`⚠️ Could not parse date string: ${trimmed}`);
     return '';
   }
   
-  // Validate date
-  if (isNaN(date.getTime())) {
-    Logger.log(`⚠️ Invalid date value: ${dateValue}`);
-    return '';
+  // Handle Date objects - use Utilities.formatDate to avoid timezone issues
+  if (dateValue instanceof Date) {
+    if (isNaN(dateValue.getTime())) {
+      Logger.log(`⚠️ Invalid Date object`);
+      return '';
+    }
+    // Use spreadsheet timezone to preserve the date as shown
+    const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+    return Utilities.formatDate(dateValue, tz, 'yyyy-MM-dd');
   }
   
-  // Format as YYYY-MM-DD
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  // Handle numbers (Excel/Sheets serial dates)
+  if (typeof dateValue === 'number') {
+    // Convert serial date to Date object (Sheets epoch: Dec 30, 1899)
+    const date = new Date((dateValue - 25569) * 86400 * 1000);
+    const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone();
+    return Utilities.formatDate(date, tz, 'yyyy-MM-dd');
+  }
   
-  return `${year}-${month}-${day}`;
+  Logger.log(`⚠️ Unknown date type: ${typeof dateValue} = ${dateValue}`);
+  return '';
 }
 
 function buildHistoryPayload_(tableType, rowData, effectiveDate) {
   const payload = { effectiveDate };
   
+  // Debug: Log row data to see what we're working with
+  Logger.log(`📋 Building payload for ${tableType}:`);
+  Logger.log(`   Row data length: ${rowData.length}`);
+  Logger.log(`   effectiveDate: ${effectiveDate}`);
+  
   if (tableType === 'Salary / Payroll') {
+    // Column mapping for Salary/Payroll:
+    // 0: CIQ ID, 1: Effective Date, 2: Base Salary, 3: Currency
+    // 4: Pay Period, 5: Pay Frequency, 6: Change Type, 7: Reason
     payload.base = {
       value: parseFloat(rowData[2]) || 0,
       currency: String(rowData[3] || '')
     };
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
-    if (rowData[6]) payload.workChangeType = String(rowData[6]);
-    if (rowData[7]) payload.reason = String(rowData[7]);
+    
+    // Bob API uses "reason" field - try column 7 first, then column 6 as fallback
+    const reasonValue = rowData[7] || rowData[6];
+    if (reasonValue) {
+      payload.reason = String(reasonValue);
+    }
+    
+    // Log what's in each column
+    Logger.log(`   Col 2 (Base): ${rowData[2]}`);
+    Logger.log(`   Col 3 (Currency): ${rowData[3]}`);
+    Logger.log(`   Col 4 (Pay Period): ${rowData[4]}`);
+    Logger.log(`   Col 5 (Pay Frequency): ${rowData[5]}`);
+    Logger.log(`   Col 6 (Change Type): ${rowData[6]}`);
+    Logger.log(`   Col 7 (Reason): ${rowData[7]}`);
+    Logger.log(`   Using reason: ${reasonValue}`);
+    
   } else if (tableType === 'Work History') {
+    // Column mapping for Work History:
+    // 0: CIQ ID, 1: Effective Date, 2: Job Title, 3: Department
+    // 4: Site, 5: Reports To, 6: Change Type, 7: Reason
     if (rowData[2]) payload.jobTitle = String(rowData[2]);
     if (rowData[3]) payload.department = String(rowData[3]);
     if (rowData[4]) payload.site = String(rowData[4]);
     if (rowData[5]) payload.reportsTo = String(rowData[5]);
-    if (rowData[6]) payload.workChangeType = String(rowData[6]);
-    if (rowData[7]) payload.reason = String(rowData[7]);
+    
+    const reasonValue = rowData[7] || rowData[6];
+    if (reasonValue) payload.reason = String(reasonValue);
+    
   } else if (tableType === 'Variable Pay') {
+    // Column mapping for Variable Pay:
+    // 0: CIQ ID, 1: Effective Date, 2: Variable Type, 3: Amount
+    // 4: Pay Period, 5: Pay Frequency, 6: Reason
     if (rowData[2]) payload.variableType = String(rowData[2]);
     if (rowData[3]) payload.amount = parseFloat(rowData[3]) || 0;
     if (rowData[4]) payload.payPeriod = String(rowData[4]);
@@ -3681,6 +3714,7 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     if (rowData[6]) payload.reason = String(rowData[6]);
   }
   
+  Logger.log(`   Final payload: ${JSON.stringify(payload)}`);
   return payload;
 }
 
