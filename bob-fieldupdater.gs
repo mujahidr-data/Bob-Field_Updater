@@ -3678,6 +3678,9 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
   Logger.log(`   Row data length: ${rowData.length}`);
   Logger.log(`   effectiveDate: ${effectiveDate}`);
   
+  // Build list lookup for reason/change type fields
+  const reasonListMap = buildSalaryReasonListMap_();
+  
   if (tableType === 'Salary / Payroll') {
     // Column mapping for Salary/Payroll:
     // 0: CIQ ID, 1: Effective Date, 2: Base Salary, 3: Currency
@@ -3689,10 +3692,17 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     payload.payPeriod = String(rowData[4] || '');
     if (rowData[5]) payload.payFrequency = String(rowData[5]);
     
-    // Bob API uses "reason" field - try column 7 first, then column 6 as fallback
-    const reasonValue = rowData[7] || rowData[6];
-    if (reasonValue) {
-      payload.reason = String(reasonValue);
+    // Bob API uses "workChangeType" field with the LIST ID, not label!
+    // Column 7 (Reason) contains the label like "Merit Increase"
+    // We need to convert it to the ID from the list
+    const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
+    if (reasonLabel && reasonListMap[reasonLabel]) {
+      payload.workChangeType = reasonListMap[reasonLabel];
+      Logger.log(`   ✅ Mapped "${reasonLabel}" → ID: ${reasonListMap[reasonLabel]}`);
+    } else if (reasonLabel) {
+      // If no mapping found, try sending the label directly (might work for some configs)
+      payload.workChangeType = reasonLabel;
+      Logger.log(`   ⚠️ No ID found for "${reasonLabel}", sending label directly`);
     }
     
     // Log what's in each column
@@ -3702,7 +3712,6 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 5 (Pay Frequency): ${rowData[5]}`);
     Logger.log(`   Col 6 (Change Type): ${rowData[6]}`);
     Logger.log(`   Col 7 (Reason): ${rowData[7]}`);
-    Logger.log(`   Using reason: ${reasonValue}`);
     
   } else if (tableType === 'Work History') {
     // Column mapping for Work History:
@@ -3713,8 +3722,12 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     if (rowData[4]) payload.site = String(rowData[4]);
     if (rowData[5]) payload.reportsTo = String(rowData[5]);
     
-    const reasonValue = rowData[7] || rowData[6];
-    if (reasonValue) payload.reason = String(reasonValue);
+    const reasonLabel = String(rowData[7] || rowData[6] || '').trim();
+    if (reasonLabel && reasonListMap[reasonLabel]) {
+      payload.workChangeType = reasonListMap[reasonLabel];
+    } else if (reasonLabel) {
+      payload.workChangeType = reasonLabel;
+    }
     
   } else if (tableType === 'Variable Pay') {
     // Column mapping for Variable Pay:
@@ -3729,6 +3742,41 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
   
   Logger.log(`   Final payload: ${JSON.stringify(payload)}`);
   return payload;
+}
+
+/**
+ * Build a map of Reason/Change Type labels to their IDs from Bob Lists sheet
+ * Looks for lists related to salary/payroll reason fields
+ */
+function buildSalaryReasonListMap_() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Bob Lists');
+  if (!sh) {
+    Logger.log('⚠️ Bob Lists sheet not found');
+    return {};
+  }
+  
+  const data = sh.getDataRange().getValues();
+  const map = {};
+  
+  // Look for salary-related list entries (payroll.salary.column_*)
+  for (let i = 1; i < data.length; i++) {
+    const listName = String(data[i][0] || '');
+    const valueId = String(data[i][1] || '');
+    const valueLabel = String(data[i][2] || '').trim();
+    
+    // Match salary reason/change type lists
+    if (listName.includes('payroll.salary') || listName.includes('Change Type') || 
+        listName.toLowerCase().includes('reason')) {
+      if (valueLabel && valueId) {
+        map[valueLabel] = valueId;
+        // Also add lowercase version for case-insensitive matching
+        map[valueLabel.toLowerCase()] = valueId;
+      }
+    }
+  }
+  
+  Logger.log(`📋 Built salary reason map with ${Object.keys(map).length / 2} entries`);
+  return map;
 }
 
 function getHistoryEndpoint_(tableType, bobId) {
