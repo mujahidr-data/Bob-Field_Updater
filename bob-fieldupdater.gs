@@ -3819,7 +3819,6 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     if (rowData[4]) payload.amount = parseFloat(rowData[4]) || 0;
     if (rowData[5]) payload.currency = String(rowData[5]);
     if (rowData[6]) payload.payPeriod = String(rowData[6]);
-    if (rowData[7]) payload.payFrequency = String(rowData[7]);
     
     Logger.log(`   Col 2 (Variable Type): ${rowData[2]}`);
     Logger.log(`   Col 3 (Commission/Bonus %): ${rowData[3]}`);
@@ -3829,23 +3828,41 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 7 (Pay Frequency): ${rowData[7]}`);
     Logger.log(`   Col 8 (Reason): ${rowData[8]}`);
     
-    // Reason field - check for custom column
-    const { labelMap: varReasonMap, columnPath: varColumnPath } = buildHistoryReasonListMap_('variable');
+    // Build custom columns for Variable Pay
+    // Pay Frequency: payroll.variable.column_1725449166803
+    // Reason: payroll.variable.column_1764922472006
+    const customCols = {};
+    
+    // Pay Frequency mapping
+    const payFreqLabel = String(rowData[7] || '').trim();
+    if (payFreqLabel) {
+      const payFreqMap = buildListLabelToIdMap_('payroll.variable.column_1725449166803');
+      const payFreqId = payFreqMap[payFreqLabel] || payFreqMap[payFreqLabel.toLowerCase()];
+      if (payFreqId) {
+        customCols['column_1725449166803'] = payFreqId;
+        Logger.log(`   ✅ customColumns.column_1725449166803 (Pay Frequency): ${payFreqId}`);
+      } else {
+        payload.payFrequency = payFreqLabel;
+        Logger.log(`   → payFrequency: ${payFreqLabel} (no ID found)`);
+      }
+    }
+    
+    // Reason mapping
     const reasonLabel = String(rowData[8] || '').trim();
     if (reasonLabel) {
-      const reasonId = varReasonMap[reasonLabel] || varReasonMap[reasonLabel.toLowerCase()];
-      Logger.log(`   🔍 Variable Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
-      Logger.log(`   🔍 Variable Column path: ${varColumnPath || 'not found'}`);
-      
-      if (varColumnPath && reasonId) {
-        const colKey = varColumnPath.split('.').pop();
-        payload.customColumns = { [colKey]: reasonId };
-        Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
+      const reasonMap = buildListLabelToIdMap_('payroll.variable.column_1764922472006');
+      const reasonId = reasonMap[reasonLabel] || reasonMap[reasonLabel.toLowerCase()];
+      if (reasonId) {
+        customCols['column_1764922472006'] = reasonId;
+        Logger.log(`   ✅ customColumns.column_1764922472006 (Reason): ${reasonId}`);
       } else {
-        // Fallback to standard field
-        payload.reason = reasonId || reasonLabel;
-        Logger.log(`   → reason: ${reasonId || reasonLabel}`);
+        Logger.log(`   ⚠️ No ID found for reason: ${reasonLabel}`);
       }
+    }
+    
+    // Add customColumns to payload if any
+    if (Object.keys(customCols).length > 0) {
+      payload.customColumns = customCols;
     }
     
   } else if (tableType === 'Equity / Grants') {
