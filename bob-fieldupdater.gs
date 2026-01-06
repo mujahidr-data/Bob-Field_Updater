@@ -3804,9 +3804,10 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 11 (Reason): ${rowData[11]}`);
     
     // Build list maps for fields that need ID lookup
-    const jobTitleMap = buildListLabelToIdMap_('Job Title');
-    const departmentMap = buildListLabelToIdMap_('Department');
-    const siteMap = buildListLabelToIdMap_('Site');
+    // List names in Bob Lists: title, department, site, etc. (lowercase)
+    const jobTitleMap = buildListLabelToIdMap_('title');
+    const departmentMap = buildListLabelToIdMap_('department');
+    const siteMap = buildListLabelToIdMap_('site');
     const changeTypeMap = buildListLabelToIdMap_('Change Type');
     
     // Job Title - needs ID from list
