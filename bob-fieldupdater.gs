@@ -2911,7 +2911,7 @@ function setupHistoryUploader() {
   sh.getRange('B4').setValue('')
     .setDataValidation(
       SpreadsheetApp.newDataValidation()
-        .requireValueInList(['Salary / Payroll', 'Work History', 'Variable Pay'], true)
+        .requireValueInList(['Salary / Payroll', 'Work History', 'Variable Pay', 'Equity / Grants'], true)
         .setAllowInvalid(false)
         .setHelpText('⚠️ REQUIRED: Select which history table to update')
         .build()
@@ -2938,7 +2938,7 @@ function generateHistoryColumns() {
   if (!tableType) {
     SpreadsheetApp.getUi().alert(
       '⚠️ No Table Selected',
-      'Select a table type in B4 first.\n\nChoices: Salary/Payroll, Work History, or Variable Pay',
+      'Select a table type in B4 first.\n\nChoices: Salary/Payroll, Work History, Variable Pay, or Equity/Grants',
       SpreadsheetApp.getUi().ButtonSet.OK
     );
     return;
@@ -2977,6 +2977,14 @@ function generateHistoryColumns() {
       { name: 'Pay Period', required: false, listName: null },
       { name: 'Pay Frequency', required: false, listName: null },
       { name: 'Reason', required: false, listName: null }
+    ];
+  } else if (tableType === 'Equity / Grants') {
+    columns = [
+      { name: 'CIQ ID', required: true, listName: null },
+      { name: 'Effective Date *', required: true, listName: null },
+      { name: 'Grants', required: false, listName: null },
+      { name: 'Grant Type', required: false, listName: 'grantTypes' },
+      { name: 'Grant Status', required: false, listName: 'grantStatuses' }
     ];
   }
   
@@ -3513,7 +3521,7 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         Logger.log(`📥 RAW Bob GET response (first 2000 chars):`);
         Logger.log(getResp.getContentText().slice(0, 2000));
         
-        const historyArray = Array.isArray(existing) ? existing : existing.values || existing.salaries || existing.workHistory || [];
+        const historyArray = Array.isArray(existing) ? existing : existing.values || existing.salaries || existing.workHistory || existing.equities || [];
         Logger.log(`📥 Found ${historyArray.length} existing entries for this employee`);
         isDuplicate = historyArray.some(item => item.effectiveDate === effectiveDate);
         
@@ -3823,6 +3831,34 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
         Logger.log(`   → reason: ${reasonId || reasonLabel}`);
       }
     }
+    
+  } else if (tableType === 'Equity / Grants') {
+    // Column mapping for Equity / Grants:
+    // 0: CIQ ID, 1: Effective Date, 2: Grants (amount), 3: Grant Type, 4: Grant Status
+    
+    // Build list maps for grant types and statuses
+    const grantTypeMap = buildListLabelToIdMap_('grantTypes');
+    const grantStatusMap = buildListLabelToIdMap_('grantStatuses');
+    
+    if (rowData[2]) payload.quantity = parseFloat(rowData[2]) || 0;
+    
+    const grantTypeLabel = String(rowData[3] || '').trim();
+    if (grantTypeLabel) {
+      const grantTypeId = grantTypeMap[grantTypeLabel] || grantTypeMap[grantTypeLabel.toLowerCase()];
+      payload.grantType = grantTypeId || grantTypeLabel;
+      Logger.log(`   🔍 Grant Type: "${grantTypeLabel}" → ${grantTypeId || grantTypeLabel}`);
+    }
+    
+    const grantStatusLabel = String(rowData[4] || '').trim();
+    if (grantStatusLabel) {
+      const grantStatusId = grantStatusMap[grantStatusLabel] || grantStatusMap[grantStatusLabel.toLowerCase()];
+      payload.grantStatus = grantStatusId || grantStatusLabel;
+      Logger.log(`   🔍 Grant Status: "${grantStatusLabel}" → ${grantStatusId || grantStatusLabel}`);
+    }
+    
+    Logger.log(`   Col 2 (Grants): ${rowData[2]}`);
+    Logger.log(`   Col 3 (Grant Type): ${rowData[3]}`);
+    Logger.log(`   Col 4 (Grant Status): ${rowData[4]}`);
   }
   
   Logger.log(`   Final payload: ${JSON.stringify(payload)}`);
@@ -3888,6 +3924,36 @@ function buildSalaryReasonListMap_() {
 }
 
 /**
+ * Build a simple label-to-ID map for a given list name
+ * @param {string} listName - The exact list name to look for (e.g., 'grantTypes', 'grantStatuses')
+ * Returns: {label: id} map
+ */
+function buildListLabelToIdMap_(listName) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Bob Lists');
+  if (!sh) {
+    Logger.log('⚠️ Bob Lists sheet not found');
+    return {};
+  }
+  
+  const data = sh.getDataRange().getValues();
+  const map = {};
+  
+  for (let i = 1; i < data.length; i++) {
+    const name = String(data[i][0] || '');
+    const valueId = String(data[i][1] || '');
+    const valueLabel = String(data[i][2] || '').trim();
+    
+    if (name === listName && valueLabel && valueId) {
+      map[valueLabel] = valueId;
+      map[valueLabel.toLowerCase()] = valueId;
+    }
+  }
+  
+  Logger.log(`📋 Built ${listName} map with ${Object.keys(map).length / 2} entries`);
+  return map;
+}
+
+/**
  * Test function to debug the reason mapping
  * Run this manually from Apps Script editor
  */
@@ -3918,6 +3984,8 @@ function getHistoryEndpoint_(tableType, bobId) {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/work`;
   } else if (tableType === 'Variable Pay') {
     return `${base}/v1/people/${encodeURIComponent(bobId)}/variable-pay`;
+  } else if (tableType === 'Equity / Grants') {
+    return `${base}/v1/people/${encodeURIComponent(bobId)}/equities`;
   }
   return '';
 }
