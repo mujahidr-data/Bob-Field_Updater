@@ -2951,7 +2951,7 @@ function generateHistoryColumns() {
       { name: 'CIQ ID', required: true, listName: null },
       { name: 'Effective Date *', required: true, listName: null },
       { name: 'Base Salary *', required: true, listName: null },
-      { name: 'Currency *', required: true, listName: 'Currency' },
+      { name: 'Currency *', required: true, listName: null, fixedValues: ['INR', 'USD', 'GBP'] },
       { name: 'Pay Period *', required: true, listName: null },
       { name: 'Pay Frequency', required: false, listName: null },
       { name: 'Change Type', required: false, listName: 'Change Type' },
@@ -2975,7 +2975,7 @@ function generateHistoryColumns() {
       { name: 'Variable Type', required: false, listName: 'Variable Type' },
       { name: 'Commission/Bonus %', required: false, listName: null },
       { name: 'Amount', required: false, listName: null },
-      { name: 'Currency', required: false, listName: 'Currency' },
+      { name: 'Currency', required: false, listName: null, fixedValues: ['INR', 'USD', 'GBP'] },
       { name: 'Pay Period', required: false, listName: null, fixedValues: ['Monthly', 'Annual', 'Quarterly', 'Half-Yearly'] },
       { name: 'Pay Frequency', required: false, listName: null, fixedValues: ['Monthly', 'Annually', 'Quarterly'] },
       { name: 'Reason', required: false, listName: null }
