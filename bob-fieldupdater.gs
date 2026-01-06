@@ -3299,7 +3299,7 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
   for (let i = 0; i < dataRange.length; i++) {
     const row = startRow + i;
     const ciq = String(dataRange[i][0] || '').trim();
-    const effectiveDate = String(dataRange[i][1] || '').trim();
+    const effectiveDate = formatIsoDate_(dataRange[i][1]);
     
     if (!ciq) continue;
     
@@ -3409,6 +3409,51 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     batchState.stats.skipped += skip;
     batchState.stats.failed += fail;
   }
+}
+
+/**
+ * Format a date value as ISO date string (YYYY-MM-DD)
+ * @param {Date|string|number} dateValue - Date from spreadsheet
+ * @returns {string} ISO formatted date (YYYY-MM-DD)
+ */
+function formatIsoDate_(dateValue) {
+  if (!dateValue) return '';
+  
+  let date;
+  
+  // Handle Date objects
+  if (dateValue instanceof Date) {
+    date = dateValue;
+  }
+  // Handle strings that might already be dates
+  else if (typeof dateValue === 'string') {
+    const trimmed = dateValue.trim();
+    // If already in YYYY-MM-DD format, return as-is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    date = new Date(trimmed);
+  }
+  // Handle numbers (Excel serial dates)
+  else if (typeof dateValue === 'number') {
+    date = new Date((dateValue - 25569) * 86400 * 1000);
+  }
+  else {
+    return '';
+  }
+  
+  // Validate date
+  if (isNaN(date.getTime())) {
+    Logger.log(`⚠️ Invalid date value: ${dateValue}`);
+    return '';
+  }
+  
+  // Format as YYYY-MM-DD
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
 }
 
 function buildHistoryPayload_(tableType, rowData, effectiveDate) {
