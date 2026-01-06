@@ -3788,17 +3788,16 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 7 (Reason): ${rowData[7]}`);
     
   } else if (tableType === 'Work History') {
-    // Column mapping for Work History:
+    // Column mapping for Work History (based on Bob OpenAPI spec):
     // 0: CIQ ID, 1: Effective Date, 2: Job Title, 3: Department, 4: Department Code
     // 5: Job Level, 6: Site, 7: Team, 8: ELT, 9: Reports To, 10: Change Type, 11: Reason
-    if (rowData[2]) payload.title = String(rowData[2]);
-    if (rowData[3]) payload.department = String(rowData[3]);
-    if (rowData[4]) payload.departmentId = String(rowData[4]);
-    if (rowData[5]) payload.siteId = String(rowData[5]);  // Job Level might map to siteId or custom field
-    if (rowData[6]) payload.site = String(rowData[6]);
-    if (rowData[7]) payload.team = String(rowData[7]);
-    if (rowData[8]) payload.reportsToIdInCompany = String(rowData[8]);  // ELT is typically a person
-    if (rowData[9]) payload.reportsTo = { id: String(rowData[9]) };  // Reports To needs ID
+    
+    // Standard fields from API spec
+    if (rowData[2]) payload.title = String(rowData[2]);           // Job title (ID from list)
+    if (rowData[3]) payload.department = String(rowData[3]);      // Department (ID from list)
+    if (rowData[6]) payload.site = String(rowData[6]);            // Site (mandatory)
+    if (rowData[9]) payload.reportsTo = { id: String(rowData[9]) }; // Manager (email or ID)
+    if (rowData[11]) payload.reason = String(rowData[11]);        // Reason text
     
     Logger.log(`   Col 2 (Job Title): ${rowData[2]}`);
     Logger.log(`   Col 3 (Department): ${rowData[3]}`);
@@ -3811,30 +3810,33 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 10 (Change Type): ${rowData[10]}`);
     Logger.log(`   Col 11 (Reason): ${rowData[11]}`);
     
-    // Reason field - check for custom column
+    // Custom columns for fields not in standard API
+    // Department Code, Job Level, Team, ELT, Change Type go in customColumns
+    const customCols = {};
+    
+    // These fields likely need custom column IDs from your Bob Lists
+    // You may need to check Bob Lists for the actual column IDs
+    if (rowData[4]) customCols['departmentCode'] = String(rowData[4]);  // Department Code
+    if (rowData[5]) customCols['jobLevel'] = String(rowData[5]);        // Job Level
+    if (rowData[7]) customCols['team'] = String(rowData[7]);            // Team
+    if (rowData[8]) customCols['elt'] = String(rowData[8]);             // ELT
+    if (rowData[10]) customCols['changeType'] = String(rowData[10]);    // Change Type
+    
+    // Check for custom column path for reason/change type
     const { labelMap: workReasonMap, columnPath: workColumnPath } = buildHistoryReasonListMap_('work');
-    const reasonLabel = String(rowData[11] || rowData[10] || '').trim();
-    if (reasonLabel) {
-      const reasonId = workReasonMap[reasonLabel] || workReasonMap[reasonLabel.toLowerCase()];
-      Logger.log(`   🔍 Work Reason mapping: "${reasonLabel}" → ID: ${reasonId || 'not found'}`);
-      Logger.log(`   🔍 Work Column path: ${workColumnPath || 'not found'}`);
-      
-      if (workColumnPath && reasonId) {
+    if (workColumnPath && rowData[10]) {
+      const changeTypeLabel = String(rowData[10]).trim();
+      const changeTypeId = workReasonMap[changeTypeLabel] || workReasonMap[changeTypeLabel.toLowerCase()];
+      if (changeTypeId) {
         const colKey = workColumnPath.split('.').pop();
-        payload.customColumns = { [colKey]: reasonId };
-        Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
-      } else {
-        // Fallback to standard field
-        payload.reason = reasonId || reasonLabel;
-        Logger.log(`   → reason: ${reasonId || reasonLabel}`);
+        customCols[colKey] = changeTypeId;
+        Logger.log(`   ✅ customColumns.${colKey} (Change Type): ${changeTypeId}`);
       }
     }
     
-    // Change Type
-    const changeTypeLabel = String(rowData[10] || '').trim();
-    if (changeTypeLabel) {
-      payload.changeReason = changeTypeLabel;
-      Logger.log(`   → changeReason: ${changeTypeLabel}`);
+    if (Object.keys(customCols).length > 0) {
+      payload.customColumns = customCols;
+      Logger.log(`   📦 customColumns: ${JSON.stringify(customCols)}`);
     }
     
   } else if (tableType === 'Variable Pay') {
