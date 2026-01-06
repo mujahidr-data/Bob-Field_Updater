@@ -3792,13 +3792,6 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     // 0: CIQ ID, 1: Effective Date, 2: Job Title, 3: Department, 4: Department Code
     // 5: Job Level, 6: Site, 7: Team, 8: ELT, 9: Reports To, 10: Change Type, 11: Reason
     
-    // Standard fields from API spec
-    if (rowData[2]) payload.title = String(rowData[2]);           // Job title (ID from list)
-    if (rowData[3]) payload.department = String(rowData[3]);      // Department (ID from list)
-    if (rowData[6]) payload.site = String(rowData[6]);            // Site (mandatory)
-    if (rowData[9]) payload.reportsTo = { id: String(rowData[9]) }; // Manager (email or ID)
-    if (rowData[11]) payload.reason = String(rowData[11]);        // Reason text
-    
     Logger.log(`   Col 2 (Job Title): ${rowData[2]}`);
     Logger.log(`   Col 3 (Department): ${rowData[3]}`);
     Logger.log(`   Col 4 (Department Code): ${rowData[4]}`);
@@ -3810,27 +3803,69 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     Logger.log(`   Col 10 (Change Type): ${rowData[10]}`);
     Logger.log(`   Col 11 (Reason): ${rowData[11]}`);
     
-    // Custom columns for fields not in standard API
-    // Department Code, Job Level, Team, ELT, Change Type go in customColumns
+    // Build list maps for fields that need ID lookup
+    const jobTitleMap = buildListLabelToIdMap_('Job Title');
+    const departmentMap = buildListLabelToIdMap_('Department');
+    const siteMap = buildListLabelToIdMap_('Site');
+    const changeTypeMap = buildListLabelToIdMap_('Change Type');
+    
+    // Job Title - needs ID from list
+    const jobTitleLabel = String(rowData[2] || '').trim();
+    if (jobTitleLabel) {
+      const jobTitleId = jobTitleMap[jobTitleLabel] || jobTitleMap[jobTitleLabel.toLowerCase()];
+      payload.title = jobTitleId || jobTitleLabel;
+      Logger.log(`   🔍 Job Title: "${jobTitleLabel}" → ${jobTitleId || 'using label'}`);
+    }
+    
+    // Department - needs ID from list
+    const deptLabel = String(rowData[3] || '').trim();
+    if (deptLabel) {
+      const deptId = departmentMap[deptLabel] || departmentMap[deptLabel.toLowerCase()];
+      payload.department = deptId || deptLabel;
+      Logger.log(`   🔍 Department: "${deptLabel}" → ${deptId || 'using label'}`);
+    }
+    
+    // Site - mandatory field
+    const siteLabel = String(rowData[6] || '').trim();
+    if (siteLabel) {
+      const siteId = siteMap[siteLabel] || siteMap[siteLabel.toLowerCase()];
+      payload.site = siteId || siteLabel;
+      Logger.log(`   🔍 Site: "${siteLabel}" → ${siteId || 'using label'}`);
+    }
+    
+    // Reports To - manager email or ID
+    if (rowData[9]) {
+      payload.reportsTo = { id: String(rowData[9]) };
+      Logger.log(`   → reportsTo.id: ${rowData[9]}`);
+    }
+    
+    // Reason text
+    if (rowData[11]) {
+      payload.reason = String(rowData[11]);
+      Logger.log(`   → reason: ${rowData[11]}`);
+    }
+    
+    // Custom columns for additional fields
     const customCols = {};
     
-    // These fields likely need custom column IDs from your Bob Lists
-    // You may need to check Bob Lists for the actual column IDs
-    if (rowData[4]) customCols['departmentCode'] = String(rowData[4]);  // Department Code
-    if (rowData[5]) customCols['jobLevel'] = String(rowData[5]);        // Job Level
-    if (rowData[7]) customCols['team'] = String(rowData[7]);            // Team
-    if (rowData[8]) customCols['elt'] = String(rowData[8]);             // ELT
-    if (rowData[10]) customCols['changeType'] = String(rowData[10]);    // Change Type
-    
-    // Check for custom column path for reason/change type
-    const { labelMap: workReasonMap, columnPath: workColumnPath } = buildHistoryReasonListMap_('work');
-    if (workColumnPath && rowData[10]) {
-      const changeTypeLabel = String(rowData[10]).trim();
-      const changeTypeId = workReasonMap[changeTypeLabel] || workReasonMap[changeTypeLabel.toLowerCase()];
+    // Change Type - map to ID
+    const changeTypeLabel = String(rowData[10] || '').trim();
+    if (changeTypeLabel) {
+      const changeTypeId = changeTypeMap[changeTypeLabel] || changeTypeMap[changeTypeLabel.toLowerCase()];
       if (changeTypeId) {
+        customCols['changeReason'] = changeTypeId;
+        Logger.log(`   ✅ Change Type: "${changeTypeLabel}" → ${changeTypeId}`);
+      }
+    }
+    
+    // Check for work-specific custom columns
+    const { labelMap: workReasonMap, columnPath: workColumnPath } = buildHistoryReasonListMap_('work');
+    if (workColumnPath && changeTypeLabel) {
+      const reasonId = workReasonMap[changeTypeLabel] || workReasonMap[changeTypeLabel.toLowerCase()];
+      if (reasonId) {
         const colKey = workColumnPath.split('.').pop();
-        customCols[colKey] = changeTypeId;
-        Logger.log(`   ✅ customColumns.${colKey} (Change Type): ${changeTypeId}`);
+        customCols[colKey] = reasonId;
+        Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
       }
     }
     
