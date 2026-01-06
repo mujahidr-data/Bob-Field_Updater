@@ -3452,8 +3452,15 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
   const columnCount = parseInt(sh.getRange('D2').getValue() || '8');
   const statusColStart = columnCount + 1;
   
+  Logger.log(`📊 History Upload Config:`);
+  Logger.log(`   Table Type: ${tableType}`);
+  Logger.log(`   Column Count (D2): ${columnCount}`);
+  Logger.log(`   Status Col Start: ${statusColStart}`);
+  Logger.log(`   Reading rows ${startRow} to ${endRow}`);
+  
   // Read only data columns
   const dataRange = sh.getRange(startRow, 1, endRow - startRow + 1, columnCount).getValues();
+  Logger.log(`   Data range: ${dataRange.length} rows x ${dataRange[0]?.length || 0} columns`);
   
   // Rate limiting: 10 POST requests per minute = 6 seconds between each
   const RATE_LIMIT_DELAY_MS = 6000;
@@ -3476,6 +3483,12 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
       sh.getRange(row, statusColStart + 3).setValue('CIQ not found - Use "All" status in Employees');
       fail++;
       continue;
+    }
+    
+    // Debug: Log raw row data BEFORE building payload
+    Logger.log(`🔍 Row ${row} raw data (${dataRange[i].length} columns):`);
+    for (let c = 0; c < dataRange[i].length; c++) {
+      Logger.log(`   [${c}] = "${dataRange[i][c]}" (${typeof dataRange[i][c]})`);
     }
     
     // Build payload based on table type
