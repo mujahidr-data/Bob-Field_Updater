@@ -3540,14 +3540,13 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
         } else {
           Logger.log(`⚠️ No existing salary entries found for this employee`);
         }
-      } else {
-        Logger.log(`⚠️ GET returned HTTP ${getCode}: ${getResp.getContentText().slice(0, 500)}`);
       } else if (getCode === 429) {
         // Rate limited on GET, wait and retry
         Logger.log(`⚠️ Rate limited on GET for row ${row}, waiting...`);
         Utilities.sleep(10000); // Wait 10 seconds
         getStatus = 'Retry needed';
       } else {
+        Logger.log(`⚠️ GET returned HTTP ${getCode}: ${getResp.getContentText().slice(0, 500)}`);
         getStatus = `HTTP ${getCode}`;
       }
     } catch(e) {
