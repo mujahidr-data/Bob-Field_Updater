@@ -679,6 +679,95 @@ function findTextFieldColumnKey_(fieldName) {
 }
 
 /**
+ * Create a new list item in Bob if it doesn't exist
+ * @param {string} listName - The list name (e.g., 'title', 'department')
+ * @param {string} itemName - The item name to create
+ * @returns {string|null} The new item's ID or null if failed
+ */
+function createListItemIfNotExists_(listName, itemName) {
+  if (!listName || !itemName) return null;
+  
+  Logger.log(`   🆕 Creating new ${listName} item: "${itemName}"`);
+  
+  const url = `${CONFIG.BASE_URL}/v1/metadata/lists/${encodeURIComponent(listName)}`;
+  const payload = { name: itemName };
+  
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: buildAuthHeaders_(),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const code = response.getResponseCode();
+    const text = response.getContentText();
+    
+    if (code === 200 || code === 201) {
+      const result = JSON.parse(text);
+      const newId = result.id || result.valueId;
+      Logger.log(`   ✅ Created ${listName} item: "${itemName}" → ID: ${newId}`);
+      
+      // Add to Bob Lists sheet for future lookups
+      addToBobListsSheet_(listName, newId, itemName);
+      
+      return String(newId);
+    } else {
+      Logger.log(`   ❌ Failed to create ${listName} item: ${code} - ${text}`);
+      return null;
+    }
+  } catch (e) {
+    Logger.log(`   ❌ Error creating ${listName} item: ${e.message}`);
+    return null;
+  }
+}
+
+/**
+ * Add a new list item to the Bob Lists sheet
+ * @param {string} listName - The list name
+ * @param {string} valueId - The item ID
+ * @param {string} valueLabel - The item label
+ */
+function addToBobListsSheet_(listName, valueId, valueLabel) {
+  try {
+    const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+    if (!sh) return;
+    
+    // Append new row
+    sh.appendRow([listName, valueId, valueLabel, '']);
+    Logger.log(`   📝 Added to Bob Lists: ${listName} | ${valueId} | ${valueLabel}`);
+  } catch (e) {
+    Logger.log(`   ⚠️ Could not add to Bob Lists sheet: ${e.message}`);
+  }
+}
+
+/**
+ * Get or create a title ID - looks up existing, creates if not found
+ * @param {string} titleLabel - The title name
+ * @returns {string|null} The title ID (existing or newly created)
+ */
+function getOrCreateTitleId_(titleLabel) {
+  if (!titleLabel) return null;
+  
+  // First try existing lookup
+  const titleMap = buildListLabelToIdMap_('title');
+  const existingId = titleMap[titleLabel] || titleMap[titleLabel.toLowerCase()];
+  
+  if (existingId) {
+    Logger.log(`   🔍 Title exists: "${titleLabel}" → ${existingId}`);
+    return existingId;
+  }
+  
+  // Not found - create new title
+  Logger.log(`   🆕 Title not found, creating: "${titleLabel}"`);
+  const newId = createListItemIfNotExists_('title', titleLabel);
+  
+  return newId;
+}
+
+/**
  * Find ELT value ID by employee name
  * Searches Bob Lists for any entry matching the employee name
  * @param {string} employeeName - The employee name to look up
@@ -4065,12 +4154,25 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     const siteMap = buildListLabelToIdMap_('site');
     const changeTypeMap = buildListLabelToIdMap_('workChangeType');
     
-    // Job Title - needs ID from list
+    // Job Title - needs ID from list, create if not exists
     const jobTitleLabel = String(rowData[2] || '').trim();
     if (jobTitleLabel) {
-      const jobTitleId = jobTitleMap[jobTitleLabel] || jobTitleMap[jobTitleLabel.toLowerCase()];
-      payload.title = jobTitleId || jobTitleLabel;
-      Logger.log(`   🔍 Job Title: "${jobTitleLabel}" → ${jobTitleId || 'using label'}`);
+      // First try existing lookup
+      let jobTitleId = jobTitleMap[jobTitleLabel] || jobTitleMap[jobTitleLabel.toLowerCase()];
+      
+      if (!jobTitleId) {
+        // Title not found - try to create it in Bob
+        jobTitleId = getOrCreateTitleId_(jobTitleLabel);
+      }
+      
+      if (jobTitleId) {
+        payload.title = jobTitleId;
+        Logger.log(`   ✅ Job Title: "${jobTitleLabel}" → ${jobTitleId}`);
+      } else {
+        // Last resort - send label (will likely fail but shows in error)
+        payload.title = jobTitleLabel;
+        Logger.log(`   ⚠️ Job Title: "${jobTitleLabel}" - could not get or create ID`);
+      }
     }
     
     // Department - needs ID from list
