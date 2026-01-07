@@ -674,7 +674,56 @@ function findTextFieldColumnKey_(fieldName) {
     }
   }
   
-  Logger.log(`   🔎 Text field not found: "${fieldName}"`);
+  Logger.log(`   🔎 Text field not found by valueLabel: "${fieldName}"`);
+  return null;
+}
+
+/**
+ * Find column key by searching listName for a pattern
+ * Fallback method when valueLabel lookup fails
+ * @param {string} pattern - Pattern to search for in listName (e.g., "Team")
+ * @returns {string|null} The column key or null
+ */
+function findColumnKeyByListNamePattern_(pattern) {
+  if (!pattern) return null;
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return null;
+  
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 3) return null;
+  
+  const head = vals[1].map(h => String(h || '').trim());
+  const iList = head.indexOf('listName');
+  const iValLbl = head.indexOf('valueLabel');
+  const iValId = head.indexOf('valueId');
+  
+  if (iList < 0) return null;
+  
+  const searchLower = pattern.toLowerCase();
+  
+  // Also check all columns in case header names vary
+  for (let r = 2; r < vals.length; r++) {
+    const listName = String(vals[r][iList] || '').trim();
+    const valueLabel = iValLbl >= 0 ? String(vals[r][iValLbl] || '').trim() : '';
+    const valueId = iValId >= 0 ? String(vals[r][iValId] || '').trim() : '';
+    
+    // Look for work custom field
+    if (listName.startsWith('work.') && 
+        (listName.includes('column_') || listName.includes('field_'))) {
+      
+      // Check if valueLabel or valueId contains the pattern
+      if (valueLabel.toLowerCase() === searchLower || 
+          valueId.toLowerCase() === searchLower) {
+        const parts = listName.split('.');
+        const columnKey = parts[parts.length - 1];
+        Logger.log(`   🔎 Found by pattern: "${pattern}" → ${listName} → key: ${columnKey}`);
+        return columnKey;
+      }
+    }
+  }
+  
+  Logger.log(`   🔎 Column not found by pattern: "${pattern}"`);
   return null;
 }
 
@@ -4017,16 +4066,21 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Team (Col 7) - TEXT field, find column key and send raw text
+    // Team (Col 7) - TEXT field stored in customColumns
+    // From existing Bob data: column_1699014211468 stores Team values like "DSA"
     const team = String(rowData[7] || '').trim();
     if (team) {
-      // Team is a text field - look up the column key by field name "Team"
-      const teamColumnKey = findTextFieldColumnKey_('Team');
+      // Try to find Team column key from Bob Lists, or use known column
+      let teamColumnKey = findTextFieldColumnKey_('Team');
+      if (!teamColumnKey) {
+        // Fallback: look for column with 'Team' in listName
+        teamColumnKey = findColumnKeyByListNamePattern_('Team');
+      }
       if (teamColumnKey) {
         payload.customColumns[teamColumnKey] = team; // Send raw text value
         Logger.log(`   ✅ Team (text): "${team}" → ${teamColumnKey}: "${team}"`);
       } else {
-        Logger.log(`   ⚠️ Team: Column key not found in Bob Lists for text field "Team"`);
+        Logger.log(`   ⚠️ Team: Column key not found - check Bob Lists for work.*.column_* with Team`);
       }
     }
     
@@ -4058,18 +4112,18 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Change Type (Col 10) - standard field with custom list values
-    // Field is 'changeReason' but values come from workChangeType list
+    // Change Type (Col 10) - field is 'workChangeType' (not 'changeReason')
+    // Values come from workChangeType list
     const changeTypeLabel = String(rowData[10] || '').trim();
     if (changeTypeLabel) {
       const changeTypeId = findWorkChangeTypeId_(changeTypeLabel);
       if (changeTypeId) {
-        payload.changeReason = changeTypeId;
-        Logger.log(`   ✅ changeReason: "${changeTypeLabel}" → ID: ${changeTypeId}`);
+        payload.workChangeType = changeTypeId;
+        Logger.log(`   ✅ workChangeType: "${changeTypeLabel}" → ID: ${changeTypeId}`);
       } else {
         // Fallback to label if not found
-        payload.changeReason = changeTypeLabel;
-        Logger.log(`   ⚠️ changeReason: "${changeTypeLabel}" (ID not found, using label)`);
+        payload.workChangeType = changeTypeLabel;
+        Logger.log(`   ⚠️ workChangeType: "${changeTypeLabel}" (ID not found, using label)`);
       }
     }
     
