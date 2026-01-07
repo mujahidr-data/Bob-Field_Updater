@@ -687,7 +687,10 @@ function findWorkChangeTypeId_(changeTypeLabel) {
   if (!changeTypeLabel) return null;
   
   const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
-  if (!sh) return null;
+  if (!sh) {
+    Logger.log(`   🔎 workChangeType: Bob Lists sheet not found`);
+    return null;
+  }
   
   const vals = sh.getDataRange().getValues();
   if (vals.length < 3) return null;
@@ -697,23 +700,32 @@ function findWorkChangeTypeId_(changeTypeLabel) {
   const iValId = head.indexOf('valueId');
   const iValLbl = head.indexOf('valueLabel');
   
-  if (iList < 0 || iValId < 0 || iValLbl < 0) return null;
+  if (iList < 0 || iValId < 0 || iValLbl < 0) {
+    Logger.log(`   🔎 workChangeType: Column headers not found (listName: ${iList}, valueId: ${iValId}, valueLabel: ${iValLbl})`);
+    return null;
+  }
   
   const searchValue = String(changeTypeLabel).trim();
   const searchLower = searchValue.toLowerCase();
   
+  Logger.log(`   🔎 Looking for workChangeType: "${searchValue}"`);
+  
+  let foundWorkChangeTypes = [];
   for (let r = 2; r < vals.length; r++) {
     const listName = String(vals[r][iList] || '').trim();
     const valueId = String(vals[r][iValId] || '').trim();
     const valueLabel = String(vals[r][iValLbl] || '').trim();
     
     if (listName === 'workChangeType') {
+      foundWorkChangeTypes.push({ valueId, valueLabel });
       if (valueLabel === searchValue || valueLabel.toLowerCase() === searchLower) {
+        Logger.log(`   🔎 FOUND workChangeType: "${valueLabel}" → ID: ${valueId}`);
         return valueId;
       }
     }
   }
   
+  Logger.log(`   🔎 workChangeType "${searchValue}" NOT FOUND. Available values: ${JSON.stringify(foundWorkChangeTypes)}`);
   return null;
 }
 
@@ -4046,11 +4058,19 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Change Type (Col 10) - standard field, send label directly
+    // Change Type (Col 10) - standard field with custom list values
+    // Field is 'changeReason' but values come from workChangeType list
     const changeTypeLabel = String(rowData[10] || '').trim();
     if (changeTypeLabel) {
-      payload.changeReason = changeTypeLabel;
-      Logger.log(`   ✅ changeReason: "${changeTypeLabel}"`);
+      const changeTypeId = findWorkChangeTypeId_(changeTypeLabel);
+      if (changeTypeId) {
+        payload.changeReason = changeTypeId;
+        Logger.log(`   ✅ changeReason: "${changeTypeLabel}" → ID: ${changeTypeId}`);
+      } else {
+        // Fallback to label if not found
+        payload.changeReason = changeTypeLabel;
+        Logger.log(`   ⚠️ changeReason: "${changeTypeLabel}" (ID not found, using label)`);
+      }
     }
     
     // Reason text (Col 11)
