@@ -679,6 +679,64 @@ function findTextFieldColumnKey_(fieldName) {
 }
 
 /**
+ * Find ELT value ID by employee name
+ * Searches Bob Lists for any entry matching the employee name
+ * @param {string} employeeName - The employee name to look up
+ * @returns {string|null} The value ID or null
+ */
+function findEltValueId_(employeeName) {
+  if (!employeeName) return null;
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return null;
+  
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 3) return null;
+  
+  const head = vals[1].map(h => String(h || '').trim());
+  const iList = head.indexOf('listName');
+  const iValId = head.indexOf('valueId');
+  const iValLbl = head.indexOf('valueLabel');
+  
+  if (iList < 0 || iValId < 0 || iValLbl < 0) return null;
+  
+  const searchValue = String(employeeName).trim();
+  const searchLower = searchValue.toLowerCase();
+  
+  Logger.log(`   🔎 Looking for ELT employee: "${searchValue}"`);
+  
+  // Search ALL entries for matching employee name
+  for (let r = 2; r < vals.length; r++) {
+    const listName = String(vals[r][iList] || '').trim();
+    const valueId = String(vals[r][iValId] || '').trim();
+    const valueLabel = String(vals[r][iValLbl] || '').trim();
+    
+    // Match employee name in valueLabel
+    if (valueLabel === searchValue || valueLabel.toLowerCase() === searchLower) {
+      // Prefer work.* entries but accept any match
+      if (listName.startsWith('work.') || listName.includes('ELT') || listName.includes('elt')) {
+        Logger.log(`   🔎 Found ELT: "${valueLabel}" → ID: ${valueId} (from ${listName})`);
+        return valueId;
+      }
+    }
+  }
+  
+  // Second pass: match any entry with this employee name
+  for (let r = 2; r < vals.length; r++) {
+    const valueId = String(vals[r][iValId] || '').trim();
+    const valueLabel = String(vals[r][iValLbl] || '').trim();
+    
+    if (valueLabel === searchValue || valueLabel.toLowerCase() === searchLower) {
+      Logger.log(`   🔎 Found ELT (fallback): "${valueLabel}" → ID: ${valueId}`);
+      return valueId;
+    }
+  }
+  
+  Logger.log(`   🔎 ELT employee not found: "${searchValue}"`);
+  return null;
+}
+
+/**
  * Find column key by searching listName for a pattern
  * Fallback method when valueLabel lookup fails
  * @param {string} pattern - Pattern to search for in listName (e.g., "Team")
@@ -3382,7 +3440,7 @@ function runQuickHistoryUpload() {
   const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
   
   // Confirm with user showing estimated time
-  const response = SpreadsheetApp.getUi().alert(
+    const response = SpreadsheetApp.getUi().alert(
     '▶️ Start Quick History Upload',
     `Table: ${tableType}\n` +
     `Rows: ${totalRows}\n\n` +
@@ -3391,10 +3449,10 @@ function runQuickHistoryUpload() {
     `The upload will process with 6 second delays\n` +
     `to respect rate limits and avoid 429 errors.\n\n` +
     `Continue?`,
-    SpreadsheetApp.getUi().ButtonSet.YES_NO
-  );
+      SpreadsheetApp.getUi().ButtonSet.YES_NO
+    );
   
-  if (response !== SpreadsheetApp.getUi().Button.YES) return;
+    if (response !== SpreadsheetApp.getUi().Button.YES) return;
   
   toast_(`⏳ Processing ${totalRows} rows (~${estimatedMinutes} min). Please wait...`);
   
@@ -3753,7 +3811,7 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
               const isReasonField = reasonValues.some(rv => valStr.toLowerCase().includes(rv));
               if (isReasonField) {
                 Logger.log(`   ⭐ ${key}: ${valStr} ← POSSIBLE REASON FIELD`);
-              } else {
+      } else {
                 Logger.log(`      ${key}: ${valStr}`);
               }
             }
@@ -3808,23 +3866,23 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
     }
     
     while (retryCount <= MAX_RETRIES) {
-      try {
-        const postResp = UrlFetchApp.fetch(endpoint, {
+    try {
+      const postResp = UrlFetchApp.fetch(endpoint, {
           method: httpMethod,
-          muteHttpExceptions: true,
-          headers: {
-            Authorization: `Basic ${auth}`,
-            Accept: 'application/json',
-            'Content-Type': 'application/json'
-          },
+        muteHttpExceptions: true,
+        headers: {
+          Authorization: `Basic ${auth}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
           payload: JSON.stringify(finalPayload)
-        });
-        
-        httpCode = postResp.getResponseCode();
-        
-        if (httpCode >= 200 && httpCode < 300) {
-          postStatus = 'COMPLETED';
-          ok++;
+      });
+      
+      httpCode = postResp.getResponseCode();
+      
+      if (httpCode >= 200 && httpCode < 300) {
+        postStatus = 'COMPLETED';
+        ok++;
           postCount++;
           break;
         } else if (httpCode === 429) {
@@ -3839,17 +3897,17 @@ function processHistoryUpload_(tableType, startRow, endRow, batchState) {
             errorMsg = 'Rate limit exceeded after retries';
             fail++;
           }
-        } else {
-          postStatus = 'FAILED';
-          errorMsg = postResp.getContentText().slice(0, 200);
-          fail++;
+      } else {
+        postStatus = 'FAILED';
+        errorMsg = postResp.getContentText().slice(0, 200);
+        fail++;
           postCount++;
           break;
-        }
-      } catch(e) {
-        postStatus = 'FAILED';
-        errorMsg = String(e).slice(0, 200);
-        fail++;
+      }
+    } catch(e) {
+      postStatus = 'FAILED';
+      errorMsg = String(e).slice(0, 200);
+      fail++;
         break;
       }
     }
@@ -4070,29 +4128,34 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     // From existing Bob data: column_1699014211468 stores Team values like "DSA"
     const team = String(rowData[7] || '').trim();
     if (team) {
-      // Try to find Team column key from Bob Lists, or use known column
-      let teamColumnKey = findTextFieldColumnKey_('Team');
-      if (!teamColumnKey) {
-        // Fallback: look for column with 'Team' in listName
-        teamColumnKey = findColumnKeyByListNamePattern_('Team');
-      }
-      if (teamColumnKey) {
-        payload.customColumns[teamColumnKey] = team; // Send raw text value
-        Logger.log(`   ✅ Team (text): "${team}" → ${teamColumnKey}: "${team}"`);
-      } else {
-        Logger.log(`   ⚠️ Team: Column key not found - check Bob Lists for work.*.column_* with Team`);
-      }
+      // Known column from existing Bob entries
+      const teamColumnKey = 'column_1699014211468';
+      payload.customColumns[teamColumnKey] = team;
+      Logger.log(`   ✅ Team (text): "${team}" → ${teamColumnKey}: "${team}"`);
     }
     
-    // ELT (Col 8) - LIST field, lookup value ID from Bob Lists
+    // ELT (Col 8) - LIST field, stores employee name ID
+    // From existing Bob data: column_1746017863603 stores ELT values
     const elt = String(rowData[8] || '').trim();
     if (elt) {
+      // First try to find the value ID by looking up the ELT name in Bob Lists
       const eltMatch = findWorkCustomColumn_(elt);
+      // Known column from existing Bob entries
+      const eltColumnKey = 'column_1746017863603';
+      
       if (eltMatch) {
-        payload.customColumns[eltMatch.columnKey] = eltMatch.valueId;
-        Logger.log(`   ✅ ELT: "${elt}" → ${eltMatch.columnKey}: ${eltMatch.valueId}`);
+        // Use the found value ID with the known column key
+        payload.customColumns[eltColumnKey] = eltMatch.valueId;
+        Logger.log(`   ✅ ELT: "${elt}" → ${eltColumnKey}: ${eltMatch.valueId}`);
       } else {
-        Logger.log(`   ⚠️ ELT: "${elt}" not found in Bob Lists - check if value exists in work.field_* entries`);
+        // Try to find ELT value ID from any work.* list
+        const eltId = findEltValueId_(elt);
+        if (eltId) {
+          payload.customColumns[eltColumnKey] = eltId;
+          Logger.log(`   ✅ ELT: "${elt}" → ${eltColumnKey}: ${eltId}`);
+        } else {
+          Logger.log(`   ⚠️ ELT: "${elt}" - value ID not found in Bob Lists`);
+        }
       }
     }
     
