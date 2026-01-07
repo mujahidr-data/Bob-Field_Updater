@@ -582,6 +582,96 @@ function buildListNameMap_() {
 }
 
 /**
+ * Find work custom column by value - dynamic lookup from Bob Lists
+ * Searches for work.column_*, work.field_*, work.customColumns.column_* entries
+ * @param {string} valueToFind - The label value to look up
+ * @returns {Object|null} { columnKey, valueId, listName } or null if not found
+ */
+function findWorkCustomColumn_(valueToFind) {
+  if (!valueToFind) return null;
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return null;
+  
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 3) return null;
+  
+  // Header is on row 2 (index 1)
+  const head = vals[1].map(h => String(h || '').trim());
+  const iList = head.indexOf('listName');
+  const iValId = head.indexOf('valueId');
+  const iValLbl = head.indexOf('valueLabel');
+  
+  if (iList < 0 || iValId < 0 || iValLbl < 0) return null;
+  
+  const searchValue = String(valueToFind).trim();
+  const searchLower = searchValue.toLowerCase();
+  
+  // Data starts at row 3 (index 2)
+  for (let r = 2; r < vals.length; r++) {
+    const listName = String(vals[r][iList] || '').trim();
+    const valueId = String(vals[r][iValId] || '').trim();
+    const valueLabel = String(vals[r][iValLbl] || '').trim();
+    
+    // Check if this is a work custom field (column_ or field_)
+    if (listName.startsWith('work.') && 
+        (listName.includes('column_') || listName.includes('field_'))) {
+      
+      // Check if value matches
+      if (valueLabel === searchValue || valueLabel.toLowerCase() === searchLower) {
+        // Extract column key from listName
+        // Handles: work.column_XXX, work.field_XXX, work.customColumns.column_XXX
+        const parts = listName.split('.');
+        const columnKey = parts[parts.length - 1]; // Get last part (column_XXX or field_XXX)
+        
+        return { columnKey, valueId, listName };
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Find workChangeType value ID from Bob Lists
+ * @param {string} changeTypeLabel - The change type label to look up
+ * @returns {string|null} The value ID or null
+ */
+function findWorkChangeTypeId_(changeTypeLabel) {
+  if (!changeTypeLabel) return null;
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return null;
+  
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 3) return null;
+  
+  const head = vals[1].map(h => String(h || '').trim());
+  const iList = head.indexOf('listName');
+  const iValId = head.indexOf('valueId');
+  const iValLbl = head.indexOf('valueLabel');
+  
+  if (iList < 0 || iValId < 0 || iValLbl < 0) return null;
+  
+  const searchValue = String(changeTypeLabel).trim();
+  const searchLower = searchValue.toLowerCase();
+  
+  for (let r = 2; r < vals.length; r++) {
+    const listName = String(vals[r][iList] || '').trim();
+    const valueId = String(vals[r][iValId] || '').trim();
+    const valueLabel = String(vals[r][iValLbl] || '').trim();
+    
+    if (listName === 'workChangeType') {
+      if (valueLabel === searchValue || valueLabel.toLowerCase() === searchLower) {
+        return valueId;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Get list of available sites from Bob Lists
  * @returns {Array<string>} Array of site names
  */
@@ -3826,20 +3916,31 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       Logger.log(`   🔍 Department: "${deptLabel}" → ${deptId || 'using label'}`);
     }
     
-    // Department Code (Col 4) - custom field in work table
+    // Initialize customColumns for work custom fields
+    payload.customColumns = {};
+    
+    // Department Code (Col 4) - dynamic lookup from Bob Lists
     const deptCode = String(rowData[4] || '').trim();
     if (deptCode) {
-      // Check if there's a custom column for department code
-      payload.customColumns = payload.customColumns || {};
-      // Try as standard field first; Bob may also accept as custom
-      Logger.log(`   → departmentCode (raw): ${deptCode}`);
+      const deptCodeMatch = findWorkCustomColumn_(deptCode);
+      if (deptCodeMatch) {
+        payload.customColumns[deptCodeMatch.columnKey] = deptCodeMatch.valueId;
+        Logger.log(`   ✅ Dept Code: "${deptCode}" → ${deptCodeMatch.columnKey}: ${deptCodeMatch.valueId}`);
+      } else {
+        Logger.log(`   ⚠️ Dept Code: "${deptCode}" not found in Bob Lists`);
+      }
     }
     
-    // Job Level (Col 5) - custom field
+    // Job Level (Col 5) - dynamic lookup from Bob Lists
     const jobLevel = String(rowData[5] || '').trim();
     if (jobLevel) {
-      payload.customColumns = payload.customColumns || {};
-      Logger.log(`   → jobLevel (raw): ${jobLevel}`);
+      const jobLevelMatch = findWorkCustomColumn_(jobLevel);
+      if (jobLevelMatch) {
+        payload.customColumns[jobLevelMatch.columnKey] = jobLevelMatch.valueId;
+        Logger.log(`   ✅ Job Level: "${jobLevel}" → ${jobLevelMatch.columnKey}: ${jobLevelMatch.valueId}`);
+      } else {
+        Logger.log(`   ⚠️ Job Level: "${jobLevel}" not found in Bob Lists`);
+      }
     }
     
     // Site - mandatory field
@@ -3858,18 +3959,29 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Team (Col 7) - custom field
+    // Team (Col 7) - dynamic lookup from Bob Lists
     const team = String(rowData[7] || '').trim();
     if (team) {
-      payload.customColumns = payload.customColumns || {};
-      Logger.log(`   → team (raw): ${team}`);
+      const teamMatch = findWorkCustomColumn_(team);
+      if (teamMatch) {
+        payload.customColumns[teamMatch.columnKey] = teamMatch.valueId;
+        Logger.log(`   ✅ Team: "${team}" → ${teamMatch.columnKey}: ${teamMatch.valueId}`);
+      } else {
+        // Team might be a free text field, try sending as-is
+        Logger.log(`   → Team: "${team}" (no match in Bob Lists, sending as text)`);
+      }
     }
     
-    // ELT (Col 8) - custom field
+    // ELT (Col 8) - dynamic lookup from Bob Lists
     const elt = String(rowData[8] || '').trim();
     if (elt) {
-      payload.customColumns = payload.customColumns || {};
-      Logger.log(`   → ELT (raw): ${elt}`);
+      const eltMatch = findWorkCustomColumn_(elt);
+      if (eltMatch) {
+        payload.customColumns[eltMatch.columnKey] = eltMatch.valueId;
+        Logger.log(`   ✅ ELT: "${elt}" → ${eltMatch.columnKey}: ${eltMatch.valueId}`);
+      } else {
+        Logger.log(`   ⚠️ ELT: "${elt}" not found in Bob Lists`);
+      }
     }
     
     // Reports To - needs Bob internal ID from CIQ ID
@@ -3888,17 +4000,32 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Change Type - top-level field (label, not ID)
+    // Change Type (Col 10) - lookup ID from workChangeType list, or use label
     const changeTypeLabel = String(rowData[10] || '').trim();
     if (changeTypeLabel) {
-      payload.changeReason = changeTypeLabel;
-      Logger.log(`   ✅ changeReason: "${changeTypeLabel}"`);
+      const changeTypeId = findWorkChangeTypeId_(changeTypeLabel);
+      if (changeTypeId) {
+        // Use the ID if found
+        payload.changeReason = changeTypeId;
+        Logger.log(`   ✅ changeReason: "${changeTypeLabel}" → ID: ${changeTypeId}`);
+      } else {
+        // Fallback to label (some values like "Promotion" might be both ID and label)
+        payload.changeReason = changeTypeLabel;
+        Logger.log(`   → changeReason: "${changeTypeLabel}" (using label)`);
+      }
     }
     
-    // Reason text
+    // Reason text (Col 11)
     if (rowData[11]) {
       payload.reason = String(rowData[11]);
       Logger.log(`   → reason: ${rowData[11]}`);
+    }
+    
+    // Remove empty customColumns
+    if (Object.keys(payload.customColumns).length === 0) {
+      delete payload.customColumns;
+    } else {
+      Logger.log(`   📦 customColumns: ${JSON.stringify(payload.customColumns)}`);
     }
     
   } else if (tableType === 'Variable Pay') {
