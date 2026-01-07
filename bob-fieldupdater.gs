@@ -624,11 +624,57 @@ function findWorkCustomColumn_(valueToFind) {
         const parts = listName.split('.');
         const columnKey = parts[parts.length - 1]; // Get last part (column_XXX or field_XXX)
         
+        Logger.log(`   🔎 Found in Bob Lists: "${valueLabel}" → ${listName} → key: ${columnKey}, id: ${valueId}`);
         return { columnKey, valueId, listName };
       }
     }
   }
   
+  Logger.log(`   🔎 Not found in Bob Lists for work custom fields: "${valueToFind}"`);
+  return null;
+}
+
+/**
+ * Find text field column key by field name from Bob Lists
+ * For text fields where the valueLabel IS the field name (e.g., "Team")
+ * @param {string} fieldName - The field name to look up (e.g., "Team")
+ * @returns {string|null} The column key (e.g., "column_1699014211468") or null
+ */
+function findTextFieldColumnKey_(fieldName) {
+  if (!fieldName) return null;
+  
+  const sh = SpreadsheetApp.getActive().getSheetByName(CONFIG.LISTS_SHEET);
+  if (!sh) return null;
+  
+  const vals = sh.getDataRange().getValues();
+  if (vals.length < 3) return null;
+  
+  const head = vals[1].map(h => String(h || '').trim());
+  const iList = head.indexOf('listName');
+  const iValLbl = head.indexOf('valueLabel');
+  
+  if (iList < 0 || iValLbl < 0) return null;
+  
+  const searchLower = fieldName.toLowerCase();
+  
+  for (let r = 2; r < vals.length; r++) {
+    const listName = String(vals[r][iList] || '').trim();
+    const valueLabel = String(vals[r][iValLbl] || '').trim();
+    
+    // Look for work custom field where valueLabel matches the field name
+    if (listName.startsWith('work.') && 
+        (listName.includes('column_') || listName.includes('field_'))) {
+      
+      if (valueLabel.toLowerCase() === searchLower) {
+        const parts = listName.split('.');
+        const columnKey = parts[parts.length - 1];
+        Logger.log(`   🔎 Found text field: "${fieldName}" → ${listName} → key: ${columnKey}`);
+        return columnKey;
+      }
+    }
+  }
+  
+  Logger.log(`   🔎 Text field not found: "${fieldName}"`);
   return null;
 }
 
@@ -3959,20 +4005,20 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Team (Col 7) - dynamic lookup from Bob Lists
+    // Team (Col 7) - TEXT field, find column key and send raw text
     const team = String(rowData[7] || '').trim();
     if (team) {
-      const teamMatch = findWorkCustomColumn_(team);
-      if (teamMatch) {
-        payload.customColumns[teamMatch.columnKey] = teamMatch.valueId;
-        Logger.log(`   ✅ Team: "${team}" → ${teamMatch.columnKey}: ${teamMatch.valueId}`);
+      // Team is a text field - look up the column key by field name "Team"
+      const teamColumnKey = findTextFieldColumnKey_('Team');
+      if (teamColumnKey) {
+        payload.customColumns[teamColumnKey] = team; // Send raw text value
+        Logger.log(`   ✅ Team (text): "${team}" → ${teamColumnKey}: "${team}"`);
       } else {
-        // Team might be a free text field, try sending as-is
-        Logger.log(`   → Team: "${team}" (no match in Bob Lists, sending as text)`);
+        Logger.log(`   ⚠️ Team: Column key not found in Bob Lists for text field "Team"`);
       }
     }
     
-    // ELT (Col 8) - dynamic lookup from Bob Lists
+    // ELT (Col 8) - LIST field, lookup value ID from Bob Lists
     const elt = String(rowData[8] || '').trim();
     if (elt) {
       const eltMatch = findWorkCustomColumn_(elt);
@@ -3980,7 +4026,7 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
         payload.customColumns[eltMatch.columnKey] = eltMatch.valueId;
         Logger.log(`   ✅ ELT: "${elt}" → ${eltMatch.columnKey}: ${eltMatch.valueId}`);
       } else {
-        Logger.log(`   ⚠️ ELT: "${elt}" not found in Bob Lists`);
+        Logger.log(`   ⚠️ ELT: "${elt}" not found in Bob Lists - check if value exists in work.field_* entries`);
       }
     }
     
@@ -4027,6 +4073,9 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
     } else {
       Logger.log(`   📦 customColumns: ${JSON.stringify(payload.customColumns)}`);
     }
+    
+    // Log final Work History payload for debugging
+    Logger.log(`   📤 FINAL Work History payload: ${JSON.stringify(payload)}`);
     
   } else if (tableType === 'Variable Pay') {
     // Column mapping for Variable Pay:
