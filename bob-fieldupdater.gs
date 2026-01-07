@@ -3826,6 +3826,22 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       Logger.log(`   🔍 Department: "${deptLabel}" → ${deptId || 'using label'}`);
     }
     
+    // Department Code (Col 4) - custom field in work table
+    const deptCode = String(rowData[4] || '').trim();
+    if (deptCode) {
+      // Check if there's a custom column for department code
+      payload.customColumns = payload.customColumns || {};
+      // Try as standard field first; Bob may also accept as custom
+      Logger.log(`   → departmentCode (raw): ${deptCode}`);
+    }
+    
+    // Job Level (Col 5) - custom field
+    const jobLevel = String(rowData[5] || '').trim();
+    if (jobLevel) {
+      payload.customColumns = payload.customColumns || {};
+      Logger.log(`   → jobLevel (raw): ${jobLevel}`);
+    }
+    
     // Site - mandatory field
     // API expects: site (name string) OR siteId (numeric ID)
     const siteLabel = String(rowData[6] || '').trim();
@@ -3842,45 +3858,47 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Reports To - manager email or ID
-    if (rowData[9]) {
-      payload.reportsTo = { id: String(rowData[9]) };
-      Logger.log(`   → reportsTo.id: ${rowData[9]}`);
+    // Team (Col 7) - custom field
+    const team = String(rowData[7] || '').trim();
+    if (team) {
+      payload.customColumns = payload.customColumns || {};
+      Logger.log(`   → team (raw): ${team}`);
+    }
+    
+    // ELT (Col 8) - custom field
+    const elt = String(rowData[8] || '').trim();
+    if (elt) {
+      payload.customColumns = payload.customColumns || {};
+      Logger.log(`   → ELT (raw): ${elt}`);
+    }
+    
+    // Reports To - needs Bob internal ID from CIQ ID
+    const reportsToInput = String(rowData[9] || '').trim();
+    if (reportsToInput) {
+      // Build CIQ to Bob ID map to look up manager's Bob ID
+      const ciqToBobMap = buildCiqToBobMap_();
+      const managerBobId = ciqToBobMap[reportsToInput];
+      if (managerBobId) {
+        payload.reportsTo = { id: managerBobId };
+        Logger.log(`   ✅ reportsTo: CIQ ${reportsToInput} → Bob ID ${managerBobId}`);
+      } else {
+        // If not found in map, assume it's already a Bob ID
+        payload.reportsTo = { id: reportsToInput };
+        Logger.log(`   → reportsTo.id: ${reportsToInput} (assumed Bob ID)`);
+      }
+    }
+    
+    // Change Type - top-level field (label, not ID)
+    const changeTypeLabel = String(rowData[10] || '').trim();
+    if (changeTypeLabel) {
+      payload.changeReason = changeTypeLabel;
+      Logger.log(`   ✅ changeReason: "${changeTypeLabel}"`);
     }
     
     // Reason text
     if (rowData[11]) {
       payload.reason = String(rowData[11]);
       Logger.log(`   → reason: ${rowData[11]}`);
-    }
-    
-    // Custom columns for additional fields
-    const customCols = {};
-    
-    // Change Type - map to ID
-    const changeTypeLabel = String(rowData[10] || '').trim();
-    if (changeTypeLabel) {
-      const changeTypeId = changeTypeMap[changeTypeLabel] || changeTypeMap[changeTypeLabel.toLowerCase()];
-      if (changeTypeId) {
-        customCols['changeReason'] = changeTypeId;
-        Logger.log(`   ✅ Change Type: "${changeTypeLabel}" → ${changeTypeId}`);
-      }
-    }
-    
-    // Check for work-specific custom columns
-    const { labelMap: workReasonMap, columnPath: workColumnPath } = buildHistoryReasonListMap_('work');
-    if (workColumnPath && changeTypeLabel) {
-      const reasonId = workReasonMap[changeTypeLabel] || workReasonMap[changeTypeLabel.toLowerCase()];
-      if (reasonId) {
-        const colKey = workColumnPath.split('.').pop();
-        customCols[colKey] = reasonId;
-        Logger.log(`   ✅ customColumns.${colKey}: ${reasonId}`);
-      }
-    }
-    
-    if (Object.keys(customCols).length > 0) {
-      payload.customColumns = customCols;
-      Logger.log(`   📦 customColumns: ${JSON.stringify(customCols)}`);
     }
     
   } else if (tableType === 'Variable Pay') {
