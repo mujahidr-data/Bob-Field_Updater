@@ -4046,19 +4046,11 @@ function buildHistoryPayload_(tableType, rowData, effectiveDate) {
       }
     }
     
-    // Change Type (Col 10) - lookup ID from workChangeType list, or use label
+    // Change Type (Col 10) - standard field, send label directly
     const changeTypeLabel = String(rowData[10] || '').trim();
     if (changeTypeLabel) {
-      const changeTypeId = findWorkChangeTypeId_(changeTypeLabel);
-      if (changeTypeId) {
-        // Use the ID if found
-        payload.changeReason = changeTypeId;
-        Logger.log(`   ✅ changeReason: "${changeTypeLabel}" → ID: ${changeTypeId}`);
-      } else {
-        // Fallback to label (some values like "Promotion" might be both ID and label)
-        payload.changeReason = changeTypeLabel;
-        Logger.log(`   → changeReason: "${changeTypeLabel}" (using label)`);
-      }
+      payload.changeReason = changeTypeLabel;
+      Logger.log(`   ✅ changeReason: "${changeTypeLabel}"`);
     }
     
     // Reason text (Col 11)
