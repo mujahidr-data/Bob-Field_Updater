@@ -3386,8 +3386,8 @@ function generateHistoryColumns() {
           .build()
       );
     } else if (column.name === 'Pay Frequency') {
-      // Default pay frequency values for Salary/Payroll
-      const payFreqVals = ['Monthly', 'Semi Monthly', 'Weekly', 'Bi-Weekly'];
+      // Pay frequency values matching Bob's UI exactly
+      const payFreqVals = ['Weekly', 'Monthly', 'Pro rata', 'Every two weeks', 'Twice a month', 'Four weekly'];
       range.setDataValidation(
         SpreadsheetApp.newDataValidation()
           .requireValueInList(payFreqVals, true)
